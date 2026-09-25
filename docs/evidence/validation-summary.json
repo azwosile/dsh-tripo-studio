@@ -1,0 +1,93 @@
+{
+  "date": "2026-09-26",
+  "plugin_version": "0.3.2",
+  "environment": {
+    "os": "Linux isolated workspace",
+    "node": "20.20.2",
+    "npm": "10.8.2",
+    "playwright": "1.58.2",
+    "chromium": "145.0.7632.6"
+  },
+  "build": "passed",
+  "npm_audit_known_vulnerabilities": 0,
+  "results": [
+    {
+      "command": "npm test",
+      "passed": 132,
+      "failed": 0,
+      "skipped": 1
+    },
+    {
+      "command": "npm run test:ui",
+      "passed": 29,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "npm run test:credentials",
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "npm run test:compat",
+      "passed": 32,
+      "failed": 0,
+      "skipped": 1
+    },
+    {
+      "command": "npm run test:v032",
+      "passed": 22,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "npm run test:v031",
+      "passed": 19,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "npm run test:v030",
+      "passed": 24,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "npm run test:v0212",
+      "passed": 30,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "npm run test:v0211",
+      "passed": 35,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "npm run test:v0210",
+      "passed": 22,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "npm run test:v029",
+      "passed": 24,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "real_provider_calls": 0,
+  "paid_requests": 0,
+  "not_performed": [
+    "DSH install or launch",
+    "native DSH GUI",
+    "test:host",
+    "test:host:routes",
+    "Windows DPAPI",
+    "native Windows folder picker",
+    "real provider API"
+  ],
+  "scope": "Final rerun after original source byte verification; not a penetration test or provider compatibility certification."
+}

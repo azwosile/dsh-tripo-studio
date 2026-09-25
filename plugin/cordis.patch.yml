@@ -1,0 +1,7 @@
+# dsh-tripo-studio 的自动装载补丁：声明本插件作为 Harness 的一个 loader entry。
+# 客户端面板由 lib/client.js 提供（package.json 的 dsh.client + exports["./client"]）。
+- insert:
+    - id: tripo-studio
+      name: dsh-tripo-studio
+      config:
+        demoMode: false

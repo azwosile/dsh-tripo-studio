@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>dsh-tripo-studio client bundle harness</title>
+<style>
+  html,body{margin:0;height:100%;background:#f6f7f4;font-family:'Segoe UI',system-ui,'PingFang SC',sans-serif}
+  #shell{display:flex;height:100%}
+  #rail{width:56px;border-right:1px solid #e6e9e3;background:#fcfdfb;display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:10px}
+  #rail button{width:34px;height:34px;border:0;border-radius:9px;background:none;color:#94a099;cursor:pointer}
+  #rail button.on{background:#e4ede5;color:#285d48}
+  #panel{flex:1;position:relative;min-width:0}
+  #hint{position:fixed;right:10px;bottom:8px;font-size:10px;color:#9aa39a}
+  /* Preview shell only: never injected into DSH's real sidebar. */
+  #shell:has(.tw-shell[data-theme=dark]) #rail{background:#202c37;border-color:#526776;color:#edf4f7}
+  #shell:has(.tw-shell[data-theme=dark]) #rail button.on{background:#2d3d49;color:#a6dfc4}
+</style>
+</head>
+<body>
+<div id="shell">
+  <div id="rail"><button class="on" id="row"></button></div>
+  <div id="panel"></div>
+</div>
+<div id="hint">本地校验页：直接加载 lib/client-v0.3.2.js，用桩 ctx 注册槽位后渲染，不经过 DSH</div>
+
+<script src="../node_modules/react/umd/react.development.js"></script>
+<script src="../node_modules/react-dom/umd/react-dom.development.js"></script>
+<script>
+  // ── Harness module-loader stand-in ────────────────────────────────────────
+  window.__ModuleLoader__ = {load(registration) { window.__pluginRegistration = registration }}
+  const problems = []
+  window.addEventListener('error', (event) => problems.push(String(event.message)))
+</script>
+<script src="../lib/client-v0.3.2.js"></script>
+<script>
+  const table = {react: React}
+  const requireShim = (spec) => {
+    if (spec in table) return table[spec]
+    throw new Error('module table has no "' + spec + '"')
+  }
+  const registration = window.__pluginRegistration
+  if (!registration || registration.id !== 'dsh-tripo-studio') {
+    problems.push('client.js did not register id=dsh-tripo-studio')
+  }
+  const plugin = registration.factory(requireShim)
+
+  // ── Slot service stand-in ────────────────────────────────────────────────
+  const register = (options, component) => {
+    entries.push({options, component})
+    return () => { const i = entries.findIndex((entry) => entry.component === component); if (i >= 0) entries.splice(i, 1) }
+  }
+  const entries = []
+  const slots = {
+    register,
+    inject(slot, factory) { return factory() }
+  }
+  const disposers = []
+  const ctx = {
+    slots,
+    locale: {register: () => () => {}},
+    logger: {warn: (...args) => console.warn('[plugin]', ...args)},
+    effect(fn) { const dispose = fn(); if (typeof dispose === 'function') disposers.push(dispose); return () => {} }
+  }
+
+  plugin.apply(ctx)
+
+  // ── Render what the shell would render ──────────────────────────────────
+  const row = entries.find((entry) => entry.options.name === 'sidebar.panellist')
+  const panel = entries.find((entry) => entry.options.name === 'main')
+  document.getElementById('row').appendChild(document.createElement('span'))
+  const root = ReactDOM.createRoot(document.getElementById('panel'))
+  const t = (key) => key
+  const seat = {
+    // wrapper mimics the shell: one locale namespace, no cookie/cache in the harness
+    t: undefined
+  }
+  ReactDOM.createRoot(document.getElementById('row')).render(React.createElement(row.component, {size: 18, active: true}))
+  root.render(React.createElement(panel.component, {t: undefined}))
+
+  window.__tripoPreviewUnmount = () => root.unmount()
+  window.__result = {slots: entries.map((entry) => ({name: entry.options.name, id: entry.options.id, key: entry.options.key, order: entry.options.order})), problems, disposers: disposers.length}
+</script>
+</body>
+</html>
