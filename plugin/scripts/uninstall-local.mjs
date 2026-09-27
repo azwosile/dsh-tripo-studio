@@ -11,7 +11,9 @@ const installed = path.join(harness, 'plugins', PACKAGE), raw = fs.readFileSync(
 if (pkg.dependencies?.[PACKAGE] && pkg.dependencies[PACKAGE] !== `file:../../plugins/${PACKAGE}`) throw new Error('依赖来源已经改变，停止卸载以免移除别人的配置')
 let stat
 try { stat = fs.lstatSync(link) } catch (e) { if (e.code !== 'ENOENT') throw e }
-if (stat && (!stat.isSymbolicLink() || normalizePath(path.resolve(path.dirname(link), fs.readlinkSync(link))) !== normalizePath(installed))) throw new Error('链接不属于本插件，未删除')
+// DSH 0.10.0 (pnpm nodeLinker=hoisted) may have replaced the junction with a real copy of this plugin.
+const pnpmCopy = Boolean(stat && !stat.isSymbolicLink() && stat.isDirectory() && (() => { try { return JSON.parse(fs.readFileSync(path.join(link, 'package.json'), 'utf8')).name === PACKAGE } catch { return false } })())
+if (stat && !pnpmCopy && (!stat.isSymbolicLink() || normalizePath(path.resolve(path.dirname(link), fs.readlinkSync(link))) !== normalizePath(installed))) throw new Error('链接不属于本插件，未删除')
 console.log('只移除本插件的 bundle、依赖和 junction；保留插件文件、项目资产、备份和其他配置。')
 if (!apply) { console.log('DRY_RUN：未修改。关闭 DSH 后运行 node scripts/uninstall-local.mjs --apply'); process.exit(0) }
 if (process.platform !== 'win32') throw new Error('仅支持 Windows')
@@ -23,5 +25,6 @@ if (Array.isArray(pkg.dsh?.profile?.bundles)) pkg.dsh.profile.bundles = pkg.dsh.
 if (pkg.dependencies) delete pkg.dependencies[PACKAGE]
 const eol = raw.includes('\r\n') ? '\r\n' : '\n', temp = `${file}.tripo-uninstall.tmp`
 fs.writeFileSync(temp, `${JSON.stringify(pkg, null, 2).replace(/\n/g, eol)}${eol}`); fs.renameSync(temp, file)
-if (stat) fs.unlinkSync(link)
+if (pnpmCopy) fs.renameSync(link, path.join(backup, 'profile-pnpm-copy'))
+else if (stat) fs.unlinkSync(link)
 console.log(`已停用本插件。备份：${backup}。没有运行 pnpm 或恢复整份旧 profile。`)

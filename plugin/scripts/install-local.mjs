@@ -34,7 +34,11 @@ const dataIndexes = () => {
 }
 let oldLink = null
 try { oldLink = fs.lstatSync(link) } catch (e) { if (e.code !== 'ENOENT') throw e }
-if (oldLink && (!oldLink.isSymbolicLink() || normalizePath(path.resolve(path.dirname(link), fs.readlinkSync(link))) !== normalizePath(installed))) throw new Error('现有包链接/目录不归此安装器所有，已停止以免覆盖其他内容')
+// DSH 0.10.0 profiles use pnpm nodeLinker=hoisted: after any market install the junction is replaced by a
+// real copy of plugins/dsh-tripo-studio. Accept that copy only when it is provably ours, and back it up.
+const pnpmCopy = Boolean(oldLink && !oldLink.isSymbolicLink() && oldLink.isDirectory() && pkg.dependencies[PACKAGE] === `file:../../plugins/${PACKAGE}` &&
+  (() => { try { return JSON.parse(fs.readFileSync(path.join(link, 'package.json'), 'utf8')).name === PACKAGE } catch { return false } })())
+if (oldLink && !pnpmCopy && (!oldLink.isSymbolicLink() || normalizePath(path.resolve(path.dirname(link), fs.readlinkSync(link))) !== normalizePath(installed))) throw new Error('现有包链接/目录不归此安装器所有，已停止以免覆盖其他内容')
 if (pkg.dependencies[PACKAGE] && pkg.dependencies[PACKAGE] !== `file:../../plugins/${PACKAGE}`) throw new Error('profile 中存在其他来源的同名插件，需人工确认，未覆盖')
 console.log(JSON.stringify({mode: apply ? 'APPLY' : 'DRY_RUN', version: meta.version, source, destination: installed, profile: profileFile,
   changes: ['备份旧插件与 profile', '额外备份项目索引 state.json（不含图片/模型/密钥）', '安装本插件发布闭包', '只修改本插件的依赖与 bundle', '创建指向安装目录的 junction'],
@@ -53,7 +57,7 @@ fs.writeFileSync(path.join(backup, 'web-profile-package.json'), original)
 const snapshot = path.join(backup, 'user-data-indexes')
 for (const [i, file] of dataIndexes().entries()) { fs.mkdirSync(snapshot, {recursive: true}); fs.copyFileSync(file, path.join(snapshot, `${i}-${path.basename(file)}`), fs.constants.COPYFILE_EXCL) }
 if (fs.existsSync(snapshot)) fs.writeFileSync(path.join(snapshot, 'README.txt'), '安装前的项目索引副本；图片、模型与密钥未复制，仍在原数据目录。\n')
-let movedOld = false, movedStage = false, newLink = false, modifiedProfile = false
+let movedOld = false, movedStage = false, newLink = false, modifiedProfile = false, movedCopy = false
 try {
   fs.mkdirSync(stage, {recursive: true})
   for (const name of ['index.js', 'lib', 'server', 'shared', 'client-src', 'scripts', 'cordis.patch.yml', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'tests', 'package.json', 'package-lock.json']) {
@@ -64,7 +68,8 @@ try {
   // the currently installed copy, without deleting its running script.
   if (fs.existsSync(installed)) { fs.renameSync(installed, path.join(backup, 'previous-plugin')); movedOld = true }
   fs.renameSync(stage, installed); movedStage = true
-  if (!oldLink) { fs.symlinkSync(installed, link, 'junction'); newLink = true }
+  if (pnpmCopy) { fs.renameSync(link, path.join(backup, 'profile-pnpm-copy')); movedCopy = true }
+  if (!oldLink || pnpmCopy) { fs.symlinkSync(installed, link, 'junction'); newLink = true }
   if (!pkg.dsh.profile.bundles.includes(PACKAGE)) pkg.dsh.profile.bundles.push(PACKAGE)
   pkg.dependencies[PACKAGE] = `file:../../plugins/${PACKAGE}`
   const eol = original.includes('\r\n') ? '\r\n' : '\n', temp = `${profileFile}.tripo-${randomUUID()}.tmp`
@@ -78,6 +83,7 @@ try {
 } catch (error) {
   if (modifiedProfile) fs.writeFileSync(profileFile, original)
   if (newLink) fs.unlinkSync(link)
+  if (movedCopy) fs.renameSync(path.join(backup, 'profile-pnpm-copy'), link)
   if (movedStage) fs.renameSync(installed, path.join(backup, 'failed-new-plugin'))
   if (movedOld) fs.renameSync(path.join(backup, 'previous-plugin'), installed)
   // Keep staging/failed output for inspection; never delete an unknown directory.
