@@ -1,7 +1,7 @@
 import React from 'react'
 import {TRIPO_API_BASE} from '../shared/site.js'
 
-export function CredentialSettings({status,busy,onSave,onClear,onBalance,balance}) {
+export function CredentialSettings({status,busy,onSave,onClear,onBalance,balance,usage,onUsage}) {
   const [key,setKey]=React.useState(''),[visible,setVisible]=React.useState(false)
   const [paid,setPaid]=React.useState(false),[remember,setRemember]=React.useState(false),[confirmClear,setConfirmClear]=React.useState(false)
   const canPersist=Boolean(status?.credentials?.canPersist)
@@ -29,7 +29,10 @@ export function CredentialSettings({status,busy,onSave,onClear,onBalance,balance
       <div className="tw-actions"><button className="tw-primary" type="submit" disabled={busy||!status||(!key.trim()&&!status.keyConfigured)}>保存连接设置</button>
         <button type="button" disabled={busy||!status?.keyConfigured} onClick={onBalance}>查询余额（不提交生成）</button></div>
     </form>
-    {balance&&<p>余额：{balance.balance??'未知'} / 冻结：{balance.frozen??'未知'}。余额不是费用报价。</p>}
+    {balance&&<p className="tw-balance-line">余额：{balance.balance??'未知'} / 冻结：{balance.frozen??'未知'}{balance.checkedAt?`（查询于 ${new Date(balance.checkedAt).toLocaleTimeString()}）`:''}。余额不是费用报价；冻结额度是运行中任务预占的积分。</p>}
+    {/* 0.3.3 REQ-071: GET /account/usage backfills real credits for this project's tasks. Read-only, never submits. */}
+    <div className="tw-actions"><button type="button" disabled={busy||!status?.keyConfigured||!onUsage} onClick={onUsage} title={onUsage?'':'请先打开一个项目'}>同步实扣积分（用量记录）</button></div>
+    {usage&&<p className="tw-usage-line">用量记录 {usage.total} 条 · 匹配本项目 {usage.matched} 个任务 · 更新 {usage.updated} 个 · 本项目已记录实扣合计 {usage.projectTotal}</p>}
     <p className="tw-note">保存本身不会请求 Tripo，也不会上传参考图；只有你点击查询余额或确认任务时才连接服务。密钥不写入浏览器存储、项目或导出清单，保存尝试后输入框会清空。不要把密钥发到聊天或截图中。</p>
     <div className="tw-actions"><button type="button" disabled={busy||!status} onClick={()=>setConfirmClear(!confirmClear)}>清除密钥</button></div>
     {confirmClear&&<div className="tw-key-clear"><p>清除会关闭国内站收费并停用当前凭据，同时删除已保存的国内站密钥内容；旧国际站配置保持不变；重启也不会回退使用环境变量。不会取消云端已提交任务或保证退款。</p>

@@ -3,7 +3,7 @@ import {jobSite} from '../shared/site.js'
 import path from 'node:path'
 import {createHash, randomUUID} from 'node:crypto'
 
-export const APP_VERSION = '0.3.2'
+export const APP_VERSION = '0.3.3'
 export const hash = (value) => createHash('sha256').update(value).digest('hex')
 export const uid = () => randomUUID()
 export function fail(message, status = 400, code = 'INVALID_REQUEST') { throw Object.assign(new Error(message), {status, code}) }
@@ -104,7 +104,7 @@ export class Store {
     const p = this.project(id)
     if (revision !== p.revision) fail('项目已变化，请刷新后重试，未覆盖现有内容', 409, 'STALE_PROJECT')
     if (draft) {
-      const allowed = ['prompt', 'model', 'quality', 'size', 'selectedAsset', 'partName', 'partPriority', 'splitModel', 'splitQuality', 'splitSize', 'wholeAsset', 'splitMode', 'editMode', 'editPrompt', 'editModel', 'editSize', 'editQuality', 'modelVersion', 'modelFaceLimit', 'modelGeometry', 'modelTexture', 'modelPbr', 'modelTextureQuality', 'modelQuad', 'modelSmart', 'modelAutoSize', 'modelAutofix', 'modelTextureAlignment', 'modelOrientation', 'splitSheetPrompt', 'splitPartPrompt']
+      const allowed = ['prompt', 'model', 'quality', 'size', 'selectedAsset', 'partName', 'partPriority', 'splitModel', 'splitQuality', 'splitSize', 'wholeAsset', 'splitMode', 'editMode', 'editPrompt', 'editModel', 'editSize', 'editQuality', 'modelVersion', 'modelFaceLimit', 'modelGeometry', 'modelTexture', 'modelPbr', 'modelTextureQuality', 'modelQuad', 'modelSmart', 'modelAutoSize', 'modelAutofix', 'modelTextureAlignment', 'modelOrientation', 'splitSheetPrompt', 'splitPartPrompt', 'sheetAsset', 'genMode']
       // Keep string keys this version does not know (written by a newer/older plugin) so a round-trip never loses them.
       const foreign = Object.fromEntries(Object.entries(p.draft ?? {}).filter(([k, v]) => !allowed.includes(k) && typeof v === 'string'))
       p.draft = {...foreign, ...Object.fromEntries(Object.entries(draft).filter(([k, v]) => allowed.includes(k) && typeof v === 'string').map(([k, v]) => [k, v.slice(0, 6000)]))}
@@ -169,8 +169,8 @@ export class Store {
         delete this.state.jobs[id]
         for (const a of Object.values(this.state.assets)) if (a.sourceJobId === id) delete a.sourceJobId
       }
-      if (assets.some(a => [project.draft?.selectedAsset, project.draft?.wholeAsset].includes(a.id))) {
-        for (const key of ['selectedAsset', 'wholeAsset']) if (assets.some(a=>a.id===project.draft?.[key])) project.draft[key] = ''
+      if (assets.some(a => [project.draft?.selectedAsset, project.draft?.wholeAsset, project.draft?.sheetAsset].includes(a.id))) {
+        for (const key of ['selectedAsset', 'wholeAsset', 'sheetAsset']) if (assets.some(a=>a.id===project.draft?.[key])) project.draft[key] = ''
         project.revision++
       }
       this.save()

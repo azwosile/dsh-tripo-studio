@@ -12,7 +12,7 @@ import {JobService} from '../server/service.js'
 import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const evidence = path.join(root, '..', 'validation','v0.3.2'); fs.mkdirSync(evidence, {recursive: true})
+const evidence = path.join(root, '..', 'validation','v0.3.3'); fs.mkdirSync(evidence, {recursive: true})
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'tripo-ui-test-'))
 const fixture = fs.readFileSync(path.join(root, 'tests/fixtures/reference.png'))
 function triangleGlb() {
@@ -36,7 +36,7 @@ const storageManager=new ProjectLocation(service.store.directory,{picker:async()
 const handler = createHandler({service,storageManager})
 const allowed = new Map([
   ['/scripts/preview.html',['scripts/preview.html','text/html']],
-  ['/lib/client-v0.3.2.js',['lib/client-v0.3.2.js','text/javascript']],
+  ['/lib/client-v0.3.3.js',['lib/client-v0.3.3.js','text/javascript']],
   ['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],
   ['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']],
 ])
@@ -61,13 +61,15 @@ try {
  page.on('pageerror',e=>pageErrors.push(e.message));page.on('request',r=>{if(/^https?:/.test(r.url())&&!r.url().startsWith(base))external.push(r.url())})
  await page.goto(`${base}/scripts/preview.html`);await page.getByRole('button',{name:'创建本地项目',exact:true}).click()
  const projectId=Object.keys(service.store.state.projects)[0]
- await page.getByLabel('角色提示词').fill('长'.repeat(1801));await page.getByRole('button',{name:'生成 1 张 · 先确认',exact:true}).click()
+ await page.getByLabel('角色提示词').fill('长'.repeat(1801));await page.getByRole('button',{name:'文生图 · 生成 1 张 · 先确认',exact:true}).click()
  await expect(page.getByRole('alert')).toContainText('1800');check('Flare 1801-character prompt rejected before approval or paid POST',calls.length===0)
  await page.getByLabel('角色提示词').fill('测试成年角色');await page.getByLabel('导入参考图',{exact:true}).setInputFiles(path.join(root,'tests/fixtures/reference.png'))
+ // 0.3.3 REQ-069: image-to-image lives in its own tab, so a selected image never changes what 文生图 does.
+ await page.getByRole('tab',{name:/图生图/}).click();await expect(page.getByRole('tab',{name:/图生图/})).toHaveAttribute('aria-selected','true')
  await expect(page.getByRole('region',{name:'图生图改写与三视图'})).toBeVisible()
  const edit=page.getByRole('region',{name:'图生图改写与三视图'})
  await edit.getByLabel('改写图像模型',{exact:true}).selectOption('seedream_v5');await edit.getByLabel('改写提示词').fill('把外衣改成蓝色，保留其他细节')
- await edit.getByRole('button',{name:'生成改写图 · 先确认'}).click()
+ await page.getByRole('button',{name:'图生图 · 生成改写图 · 先确认',exact:true}).click()
  let modal=page.getByRole('dialog',{name:'收费任务确认'});await expect(modal).toBeVisible()
  let params=JSON.parse(await modal.locator('pre').innerText());check('rewrite approval contains reference, selected model and independent edit prompt',params.input_asset&&params.model==='seedream_v5'&&params.prompt.includes('蓝色')&&!params.quality&&calls.length===0)
  await modal.getByRole('checkbox').check();await modal.getByRole('button',{name:'确认上传并提交 1 个任务'}).click()
@@ -77,14 +79,14 @@ try {
  await expect(rewrite.locator('.tw-job-model')).toContainText('seedream_v5')
  await rewrite.getByRole('button',{name:'刷新此任务（不重新生成）'}).click();check('individual refresh does not create a second generation',calls.length===1)
  await page.locator('.tw-steps button').nth(0).click();await edit.getByLabel('图像编辑操作').selectOption('views');await edit.getByLabel('改写图像模型',{exact:true}).selectOption('chat_image_2.5_sunburst');await edit.getByLabel('改写输出尺寸').fill('2048x1152')
- await edit.getByRole('button',{name:'生成一张三视图 · 先确认'}).click();params=JSON.parse(await modal.locator('pre').innerText())
+ await page.getByRole('button',{name:'图生图 · 生成三视图 · 先确认',exact:true}).click();params=JSON.parse(await modal.locator('pre').innerText())
  check('three-view sheet is one reviewed image-to-image job, not three paid tasks',await modal.locator('article').count()===1&&params.prompt.includes('背面')&&params.prompt.includes('同一张图')&&params.size==='2048x1152'&&calls.length===1)
- await modal.getByRole('button',{name:'取消并丢弃草稿'}).click();await page.getByRole('button',{name:'保存提示词',exact:true}).click();await expect(page.getByRole('status')).toContainText('已保存')
+ await modal.getByRole('button',{name:'取消并丢弃草稿'}).click();await page.getByRole('button',{name:'保存图生图设置',exact:true}).click();await expect(page.getByRole('status')).toContainText('已保存')
  await page.reload();await expect(page.getByLabel('图像编辑操作')).toHaveValue('views');await expect(page.getByLabel('改写输出尺寸')).toHaveValue('2048x1152');check('editing mode and model settings restore from project draft',service.store.project(projectId).draft.editMode==='views')
  await page.screenshot({path:path.join(evidence,'v029-image-edit.png'),fullPage:true})
  await page.locator('.tw-steps button').nth(1).click();await page.getByLabel('拆图方式').selectOption('sheet');await expect(page.getByLabel('部件名称',{exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'AI 提取此部件 · 先确认'})).toHaveCount(0)
  check('whole split sheet hides component name and single-part action',true)
- await page.getByRole('button',{name:'生成整张拆件图 · 先确认'}).click();await expect(modal.locator('pre')).toContainText('拆解设定图');await modal.getByRole('button',{name:'取消并丢弃草稿'}).click()
+ await page.getByRole('button',{name:'生成整张拆件图 · 先确认'}).click();await expect(modal.locator('pre')).toContainText('拆件设定图');await modal.getByRole('button',{name:'取消并丢弃草稿'}).click()
  await page.getByLabel('拆图方式').selectOption('part');await expect(page.getByLabel('部件名称',{exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'生成整张拆件图 · 先确认'})).toHaveCount(0);check('single-part mode shows name and only the corresponding generation action',true)
  await page.getByLabel('裁剪 x',{exact:true}).fill('10');await page.getByRole('button',{name:'撤回裁剪编辑'}).click();await expect(page.getByLabel('裁剪 x',{exact:true})).toHaveValue('0');check('crop coordinate change can be undone',true)
  await page.getByRole('button',{name:'从图片取背景色'}).click();await page.locator('.tw-crop').click({position:{x:2,y:2}});await expect(page.getByRole('button',{name:'从图片取背景色'})).toBeVisible();check('image background eyedropper completes without generation',calls.length===1)
@@ -120,7 +122,7 @@ try {
  await page.keyboard.press('Escape');await page.setViewportSize({width:390,height:900});await page.screenshot({path:path.join(evidence,'v029-mobile.png'),fullPage:true})
  check('mobile layout stays within panel width',await page.locator('.tw-root').evaluate(e=>e.scrollWidth<=e.clientWidth+1))
  // 0.3.2: narrow slots use the same vertical flow; parameters sit below the canvas
- await page.getByRole('button',{name:'生成一张三视图 · 先确认'}).click();await modal.getByRole('checkbox').check();await modal.getByRole('button',{name:'确认上传并提交 1 个任务'}).click()
+ await page.getByRole('button',{name:'图生图 · 生成三视图 · 先确认',exact:true}).click();await modal.getByRole('checkbox').check();await modal.getByRole('button',{name:'确认上传并提交 1 个任务'}).click()
  await page.getByRole('button',{name:'刷新任务（只查询，不重提）',exact:true}).click();const views=page.locator('.tw-job').filter({hasText:'角色三视图排版'}).filter({hasText:'云端成功'});await expect(views.locator('.tw-task-output img')).toHaveCount(1)
  check('confirmed three-view sheet produces exactly one image job and local result',calls.length===2&&calls[1].kind==='image-to-image'&&calls[1].params.prompt.includes('同一张图'))
  const modelJob=service.prepare(projectId,{kind:'image-to-model',label:'模型产出卡测试',params:{input_asset:originalId}});await service.submit(projectId,modelJob.id,modelJob.approvalHash);await service.refresh(projectId);await page.getByRole('button',{name:'刷新任务（只查询，不重提）',exact:true}).click()

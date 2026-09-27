@@ -72,6 +72,8 @@ export class TripoClient {
     return this.request(`/tasks/${encodeURIComponent(id)}`)
   }
   balance() { return this.request('/account/balance') }
+  // Documented next to balance on the official account page; GET, bounded retries like every query.
+  usage() { return this.request('/account/usage') }
 }
 // Redacted, stable network cause labels for diagnostics; never includes URLs, headers or keys.
 export function networkCause(error) {

@@ -34,7 +34,7 @@ def validate_name(name: str) -> None:
         raise ValueError(f'Local configuration prohibited: {name}')
     if (p.suffix.lower() in FORBIDDEN_EXTS or re.search(r'\.blend\d*$', low)) and name != FIXTURE:
         raise ValueError(f'Model/image/archive/secret prohibited: {name}')
-    if name.startswith('plugin/lib/') and name != 'plugin/lib/client-v0.3.2.js':
+    if name.startswith('plugin/lib/') and name != 'plugin/lib/client-v0.3.3.js':
         raise ValueError(f'Historical build prohibited: {name}')
 
 def validate_content(name: str, data: bytes) -> None:
@@ -89,7 +89,7 @@ def main() -> None:
     try:
         with zipfile.ZipFile(output, 'x', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as z:
             for name, data in sorted(files.items()):
-                info = zipfile.ZipInfo(f'{TOP}/{name}', date_time=(2026, 9, 26, 0, 0, 0))
+                info = zipfile.ZipInfo(f'{TOP}/{name}', date_time=(2026, 9, 27, 0, 0, 0))
                 info.create_system = 3
                 info.external_attr = 0o100644 << 16
                 info.compress_type = zipfile.ZIP_DEFLATED

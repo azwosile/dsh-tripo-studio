@@ -20,6 +20,7 @@ import {credentialCss} from './credential-settings.jsx'
 import {useAppearance, AppearanceControls} from './appearance.js'
 import {appearanceCss} from './appearance-styles.js'
 import {studioCss} from './studio-styles.js'
+import {v033Css} from './v033-styles.js'
 
 const NS = 'tripoStudio'
 const PANEL_ID = 'tripo-studio'
@@ -225,7 +226,7 @@ function injectStyles() {
   const tag = document.createElement('style')
   tag.id = STYLE_ID
   tag.setAttribute('data-plugin-css', 'dsh-tripo-studio')
-  tag.textContent = css + workflowCss + appearanceCss + credentialCss + studioCss
+  tag.textContent = css + workflowCss + appearanceCss + credentialCss + studioCss + v033Css
   document.head.appendChild(tag)
   return () => tag.remove()
 }

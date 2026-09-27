@@ -1,4 +1,4 @@
-# dsh-tripo-studio · 0.3.2
+# dsh-tripo-studio · 0.3.3
 
 DSH Desktop 的本地 Tripo 工作台：参考图创作、拆件与裁剪、逐件图生 3D、任务管理和本机预览。当前仅接入 Tripo 国内站；不是 Blender 插件，不自动修模、装配或绑定。
 
@@ -12,7 +12,7 @@ node .\scripts\install-local.mjs --dry-run
 node .\scripts\install-local.mjs --apply
 ```
 
-发布包带 `lib/client-v0.3.2.js`。安装器备份旧插件/profile，保留数据，不自动启动宿主，不调用 Tripo，也不安装全局依赖。
+发布包带 `lib/client-v0.3.3.js`。安装器备份旧插件/profile，保留数据，不自动启动宿主，不调用 Tripo，也不安装全局依赖。
 
 启动 DSH 后，从 Tripo Studio 的连接设置填写国内站 Key；生成前明确开启收费并逐次审阅确认。不要把 Key 写进源码。数据默认位于 `%APPDATA%\dsh-desktop\tripo-studio`，不在插件安装目录中。
 
@@ -26,7 +26,7 @@ npm run build
 npm test
 npx playwright install chromium
 npm run test:ui
-npm run test:v032
+npm run test:v033
 ```
 
 构建会输出当前 JS 和上级目录中的单文件离线预览。离线预览不提供真实生成/项目持久保存。浏览器测试使用模拟供应商；不需要真实 Key。

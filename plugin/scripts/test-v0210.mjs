@@ -11,7 +11,7 @@ import {JobService} from '../server/service.js'
 import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const evidence=path.join(root,'..','validation','v0.3.2');fs.mkdirSync(evidence,{recursive:true})
+const evidence=path.join(root,'..','validation','v0.3.3');fs.mkdirSync(evidence,{recursive:true})
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'tripo-v0210-ui-'))
 const fixture=fs.readFileSync(path.join(root,'tests/fixtures/reference.png'))
 function triangleGlb(){
@@ -37,7 +37,7 @@ const client={
 }
 const service=new JobService({directory:path.join(temp,'data'),key:'FAKE_V0210_LOCAL_ONLY',enabled:true,client,downloader:async url=>url.endsWith('.glb')?triangleGlb():fixture})
 const handler=createHandler({service}),routing=hostRouter(handler)
-const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.2.js',['lib/client-v0.3.2.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
+const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.3.js',['lib/client-v0.3.3.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
 const server=http.createServer((req,res)=>{const route=routing.match(req.url);if(route)return route.handler(req,res);const file=allowed.get(new URL(req.url,'http://localhost').pathname);if(!file){res.statusCode=404;return res.end()}res.setHeader('content-type',file[1]);res.end(fs.readFileSync(path.join(root,file[0])))})
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
 const base=`http://127.0.0.1:${server.address().port}`
@@ -118,21 +118,22 @@ try{
  check('quad selection clamps face cap to official 150k',Number(await page.getByLabel('目标面数').inputValue())===150000)
  await page.getByLabel('贴图',{exact:true}).selectOption('off')
  check('texture off also disables PBR',await page.getByLabel('PBR 材质').isDisabled()&&!await page.getByLabel('PBR 材质').isChecked())
- await page.getByLabel('整体建模来源').selectOption(cropped.id)
+ await page.getByLabel('整张拆件图',{exact:true}).selectOption(cropped.id) // 0.3.3: unified plan
  await page.getByRole('button',{name:'保存建模计划'}).click()
  await page.reload();await page.locator('.tw-steps button').nth(2).click()
+ await page.getByRole('checkbox',{name:'加入建模：头发'}).first().check()
  check('model choices persist across reload',await page.getByLabel('网格拓扑').inputValue()==='quad'&&await page.getByLabel('贴图',{exact:true}).inputValue()==='off')
- await page.getByRole('button',{name:/审阅整体建模/}).click()
+ await page.getByRole('button',{name:/审阅建模/}).click()
  const approval=page.getByRole('dialog',{name:'收费任务确认'})
  const quad=JSON.parse(await approval.locator('pre').innerText())
  const tone=await approval.locator('.tw-dialog').evaluate(el=>[...getComputedStyle(el).backgroundColor.matchAll(/\d+/g)].slice(0,3).map(m=>Number(m[0])))
  check('quad request is FBX without texture and approval is neutral',quad.quad===true&&quad.face_limit===150000&&quad.pbr===false&&!('texture_quality'in quad)&&Math.max(...tone)-Math.min(...tone)<12&&created.length===0)
  await approval.getByRole('button',{name:'取消并丢弃草稿'}).click()
  await page.getByLabel('网格拓扑').selectOption('tri')
- await page.getByRole('button',{name:/审阅整体建模/}).click()
+ await page.getByRole('button',{name:/审阅建模/}).click()
  await approval.getByRole('checkbox').check();await approval.getByRole('button',{name:/确认上传并提交 1 个任务/}).click()
  await page.getByRole('button',{name:'刷新任务（只查询，不重提）'}).click()
- const model=service.store.snapshot(projectId).jobs.find(j=>j.kind==='image-to-model'&&j.status==='success'&&j.label==='整体打底模型')
+ const model=service.store.snapshot(projectId).jobs.find(j=>j.kind==='image-to-model'&&j.status==='success'&&j.role==='sheet')
  check('model generation sends approved advanced parameters once',Boolean(model)&&created.length===1&&created[0].params.model==='v3.1-20260211'&&created[0].params.texture===false&&created[0].params.quad===false)
  await page.locator('.tw-steps button').nth(2).click()
  const originalJobs=await page.getByLabel('转换来源任务').locator('option').allTextContents()
@@ -145,7 +146,7 @@ try{
  check('format conversion requires a separate paid approval',conv.format==='FBX'&&conv.quad===true&&conv.input_job===b.id&&created.length===1)
  await approval.getByRole('checkbox').check();await approval.getByRole('button',{name:/确认上传并提交 1 个任务/}).click()
  check('conversion calls provider once with task ID, never auto after modeling',created.length===2&&created[1].kind==='model-convert'&&created[1].params.input==='task_importB'&&created[1].params.format==='FBX')
- await page.locator('.tw-steps button').nth(0).click();const editPanel=page.getByRole('region',{name:'图生图改写与三视图'});await editPanel.getByLabel('改写提示词').fill('角色编辑版本');await editPanel.getByRole('button',{name:/生成改写图/}).click()
+ await page.locator('.tw-steps button').nth(0).click();await page.getByRole('tab',{name:/图生图/}).click();const editPanel=page.getByRole('region',{name:'图生图改写与三视图'});await editPanel.getByLabel('改写提示词').fill('角色编辑版本');await page.getByRole('button',{name:/图生图 · 生成改写图/}).click()
  await approval.getByRole('checkbox').check();failNext=true
  await approval.getByRole('button',{name:/确认上传并提交 1 个任务/}).click()
  await expect(page.getByRole('region',{name:'任务坞'}).locator('.tw-jobs')).toBeVisible() // 0.3.0: dock opens instead of page jump

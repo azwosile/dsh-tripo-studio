@@ -1,25 +1,25 @@
 {
-  "date": "2026-09-26",
-  "plugin_version": "0.3.2",
+  "date": "2026-09-27",
+  "plugin_version": "0.3.3",
   "environment": {
-    "os": "Linux isolated workspace",
-    "node": "20.20.2",
-    "npm": "10.8.2",
+    "os": "Windows (source workspace, isolated test data)",
+    "node": "24.19.0",
+    "npm": "11.17.0",
     "playwright": "1.58.2",
-    "chromium": "145.0.7632.6"
+    "browser": "Google Chrome 154.0.8037.57 (TRIPO_TEST_BROWSER)"
   },
   "build": "passed",
   "npm_audit_known_vulnerabilities": 0,
   "results": [
     {
       "command": "npm test",
-      "passed": 132,
+      "passed": 142,
       "failed": 0,
-      "skipped": 1
+      "skipped": 0
     },
     {
       "command": "npm run test:ui",
-      "passed": 29,
+      "passed": 31,
       "failed": 0,
       "skipped": 0
     },
@@ -31,9 +31,15 @@
     },
     {
       "command": "npm run test:compat",
-      "passed": 32,
+      "passed": 34,
       "failed": 0,
-      "skipped": 1
+      "skipped": 0
+    },
+    {
+      "command": "npm run test:v033",
+      "passed": 27,
+      "failed": 0,
+      "skipped": 0
     },
     {
       "command": "npm run test:v032",
@@ -76,6 +82,12 @@
       "passed": 24,
       "failed": 0,
       "skipped": 0
+    },
+    {
+      "command": "npm run test:host:routes",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
     }
   ],
   "real_provider_calls": 0,
@@ -84,10 +96,9 @@
     "DSH install or launch",
     "native DSH GUI",
     "test:host",
-    "test:host:routes",
-    "Windows DPAPI",
+    "Windows DPAPI with real key",
     "native Windows folder picker",
-    "real provider API"
+    "real provider API (balance/usage/generation)"
   ],
-  "scope": "Final rerun after original source byte verification; not a penetration test or provider compatibility certification."
+  "scope": "0.3.3 development-round rerun on the Windows source workspace with a mock provider; not a penetration test or provider compatibility certification."
 }

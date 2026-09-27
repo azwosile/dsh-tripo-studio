@@ -1,5 +1,6 @@
 import React from 'react'
-import {ImageEdit} from './image-edit.jsx'
+import {ImageEdit,editSpecs} from './image-edit.jsx'
+import {threeViewPrompt} from '../shared/contracts.js'
 import {CropPanel} from './crop-panel.jsx'
 import {ImageTile} from './image-card.jsx'
 import {ImageLightbox} from './image-lightbox.jsx'
@@ -18,15 +19,27 @@ import {readImageFile, cropImage, cropSelectionImage, detectParts, normalizeRect
 import {MAX_BATCH_PARTS} from './model-plan.jsx'
 import {Library,LibraryRail,TaskDock,Relations,Info,readLayout,writeLayout,LIB_PUSH_MIN} from './studio-layout.jsx'
 import {jobCounts} from './relations.js'
+import {planModelTasks,MODEL_ROLES,roleOf,jobRoleLabel,KIND_LABEL} from './model-roles.js'
+import {estimateBatch,estimateJobCredits,formatCredits} from '../shared/credit-estimate.js'
 
 const STATUS = {awaiting_approval: '等待审批', submitting: '提交中', submission_unknown: '提交结果未知 · 禁止自动重发', queued: '排队中', running: '生成中', success: '云端成功', failed: '失败', cancelled: '云端已取消', discarded: '草稿已丢弃'}
-const STAGES = ['生图定稿', '拆件与裁剪', '整体与部件建模', '交付与导入', '来源 → 部件']
-const APP_VERSION = '0.3.2'
+const STAGES = ['生图定稿', '拆件与裁剪', '统一建模', '交付与导入', '来源 → 部件']
+const APP_VERSION = '0.3.3'
 function saveJson(value, name) {
   const blob = new Blob([JSON.stringify(value, null, 2)], {type: 'application/json'}), url = URL.createObjectURL(blob)
   const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 function labelModel(id) { return IMAGE_MODEL_INFO[id]?.label || id }
+// 0.3.3 REQ-071: balance is only useful next to what is about to be spent. Query stays explicit (one GET, free).
+function BalanceCheck({balance, estimate, busy, canQuery, onQuery}) {
+  const left = balance && Number.isFinite(balance.balance) ? balance.balance - estimate.total : null
+  return <div className={`tw-balance-check ${left !== null && left < 0 ? 'short' : ''}`} role="group" aria-label="余额与参考积分">
+    <span>本批参考积分：<b>{estimate.total}</b>{estimate.unknown ? `（另有 ${estimate.unknown} 个任务无法按公开表估算）` : ''}</span>
+    {balance ? <span>账户可用 <b>{formatCredits(balance.balance)}</b> · 冻结 {formatCredits(balance.frozen)}{left !== null ? ` · 提交后约剩 ${formatCredits(left)}` : ''}<small>查询于 {new Date(balance.checkedAt || Date.now()).toLocaleTimeString()}</small></span> : <span>账户余额：未查询</span>}
+    {left !== null && left < 0 && <strong className="tw-danger">余额可能不足：Tripo 会在提交时冻结额度，不足时创建失败（错误码 2010）。</strong>}
+    <button type="button" disabled={busy || !canQuery} onClick={onQuery}>{balance ? '刷新余额' : '查询余额（不提交）'}</button>
+  </div>
+}
 export function Workflow({onPreview}) {
   const [connecting, setConnecting] = React.useState(false)
   const [status, setStatus] = React.useState(null), [projects, setProjects] = React.useState([]), [project, setProject] = React.useState(null)
@@ -37,7 +50,7 @@ export function Workflow({onPreview}) {
   const [splitMode,setSplitMode]=React.useState('part'),[cropBackground,setCropBackground]=React.useState('#ffffff'),[pickingColor,setPickingColor]=React.useState(false),[cropHistory,setCropHistory]=React.useState([])
   const [selectionMode,setSelectionMode]=React.useState('rect'),[lasso,setLasso]=React.useState([])
   const [sheetPromptText,setSheetPromptText]=React.useState(null),[partPromptText,setPartPromptText]=React.useState(null),[cropOrigin,setCropOrigin]=React.useState('')
-  const [wholeAsset,setWholeAsset]=React.useState('')
+  const [wholeAsset,setWholeAsset]=React.useState(''),[sheetAsset,setSheetAsset]=React.useState(''),[genMode,setGenMode]=React.useState('text'),[usage,setUsage]=React.useState(null)
   const [selected, setSelected] = React.useState(''), [part, setPart] = React.useState('头发'), [priority, setPriority] = React.useState('high')
   const [rect, setRect] = React.useState({x: 0, y: 0, w: 100, h: 100}), [boxes, setBoxes] = React.useState([])
   const [faceLimit, setFaceLimit] = React.useState(50000), [geometry, setGeometry] = React.useState('standard'), [modelVersion, setModelVersion] = React.useState(MODEL_VERSIONS[0])
@@ -67,7 +80,7 @@ export function Workflow({onPreview}) {
       setQuality(p.draft?.quality || 'low')
       const sm=IMAGE_MODEL_INFO[p.draft?.splitModel]?.edit?p.draft.splitModel:'chat_image_2.5_sunburst'
       setSplit({...imageDefaults(sm),...(isImageSize(p.draft?.splitSize,sm)?{size:p.draft.splitSize}:{}),...(IMAGE_MODEL_INFO[sm].quality.includes(p.draft?.splitQuality)?{quality:p.draft.splitQuality}:{})})
-      setWholeAsset(p.assets.some(a=>a.id===p.draft?.wholeAsset)?p.draft.wholeAsset:'')
+      setWholeAsset(p.assets.some(a=>a.id===p.draft?.wholeAsset)?p.draft.wholeAsset:'');setSheetAsset(p.assets.some(a=>a.id===p.draft?.sheetAsset)?p.draft.sheetAsset:p.assets.some(a=>a.id===p.draft?.wholeAsset)?p.draft.wholeAsset:'');setGenMode(p.draft?.genMode==='image'?'image':'text');setUsage(null)
       const mv=MODEL_VERSIONS.includes(p.draft?.modelVersion)?p.draft.modelVersion:MODEL_VERSIONS[0]
       const old=mv==='v2.5-20250123'
       const g=!old&&p.draft?.modelGeometry==='detailed'?'detailed':'standard'
@@ -159,6 +172,9 @@ export function Workflow({onPreview}) {
   const images = project?.assets.filter(a => a.kind === 'image') ?? [], models = project?.assets.filter(a => a.kind === 'model') ?? []
   const active = images.find(a => a.id === selected)
   const canPay = status?.keyConfigured && status?.paidEnabled
+  // Balance/usage are explicit, read-only GETs; they never run on connect or in the background.
+  const queryBalance = () => run(async () => setBalance(await api('/balance')))
+  const syncUsage = () => run(async () => { const r = await api(`/projects/${project.id}/usage/sync`, 'POST', {}); setUsage(r); if (r.project) setProject(r.project); setMessage(`已同步用量记录：${r.total} 条，匹配本项目任务 ${r.matched} 个，更新实扣积分 ${r.updated} 个；本项目已记录实扣合计 ${formatCredits(r.projectTotal)}。只查询，不提交任务。`) })
   const rememberCrop = () => setCropHistory(h=>[...h.slice(-39),{selected,rect,boxes,background:cropBackground,part,selectionMode,lasso}])
   const select = (a) => {rememberCrop();setSelected(a.id);setRect({x:0,y:0,w:100,h:100});setBoxes([]);setPickingColor(false);setSelectionMode('rect');setLasso([])}
   const undoCrop = () => {const prev=cropHistory.at(-1);if(!prev)return;setSelected(prev.selected);setRect(prev.rect);setBoxes(prev.boxes);setCropBackground(prev.background);setPart(prev.part);setSelectionMode(prev.selectionMode||'rect');setLasso(prev.lasso||[]);setCropHistory(h=>h.slice(0,-1));setPickingColor(false);setMessage('已撤回裁剪编辑；原图和已保存资产均保留，不会删除文件。')}
@@ -171,7 +187,7 @@ export function Workflow({onPreview}) {
     const p = await api(`/projects/${project.id}`, 'PATCH', {revision: project.revision, draft: {prompt, model, quality, size, selectedAsset: selected, partName: part, partPriority: priority,splitModel:split.model,splitQuality:split.quality,splitSize:split.size,wholeAsset,splitMode,editPrompt,editMode,editModel:editSettings.model,editSize:editSettings.size,editQuality:editSettings.quality,
       modelVersion,modelFaceLimit:String(faceLimit),modelGeometry:geometry,modelTexture:String(modelOptions.texture),modelPbr:String(modelOptions.pbr),
       modelTextureQuality:modelOptions.textureQuality,modelQuad:String(modelOptions.quad),modelSmart:String(modelOptions.smart),modelAutoSize:String(modelOptions.autoSize),
-      modelAutofix:String(modelOptions.autofix),modelTextureAlignment:modelOptions.textureAlignment,modelOrientation:modelOptions.orientation,splitSheetPrompt:sheetPromptText||'',splitPartPrompt:partPromptText||''}})
+      modelAutofix:String(modelOptions.autofix),modelTextureAlignment:modelOptions.textureAlignment,modelOrientation:modelOptions.orientation,splitSheetPrompt:sheetPromptText||'',splitPartPrompt:partPromptText||'',sheetAsset,genMode}})
     setProject(prev => ({...prev, ...p})); setMessage('提示词与选择已保存到本机项目')
   }
   async function importFiles(files) {
@@ -216,7 +232,7 @@ export function Workflow({onPreview}) {
   }
   const imageParams = () => imageRequest({model, prompt, quality, size})
   const setImageSettings=next=>{setModel(next.model);setSize(next.size);setQuality(next.quality)}
-  const storageChanged=async next=>{csrf.current=next.csrfToken;setStatus(next);setApproval(null);setConsent(false);setProjects([]);setProject(null);projectRef.current=null;setSelected('');setWholeAsset('');setChecked([]);setBoxes([]);setCropHistory([]);setPickingColor(false);setSelectionMode('rect');setLasso([]);setDeleteImage(null);setZoomAsset(null);setImportId('');setImportConfirm(false);setStage(0);try{localStorage.removeItem('tripo-studio-project')}catch{};setProjects(await api('/projects'));setMessage('项目根目录已切换；旧数据未迁移、未删除。请选择或新建项目。')}
+  const storageChanged=async next=>{csrf.current=next.csrfToken;setStatus(next);setApproval(null);setConsent(false);setProjects([]);setProject(null);projectRef.current=null;setSelected('');setWholeAsset('');setSheetAsset('');setUsage(null);setChecked([]);setBoxes([]);setCropHistory([]);setPickingColor(false);setSelectionMode('rect');setLasso([]);setDeleteImage(null);setZoomAsset(null);setImportId('');setImportConfirm(false);setStage(0);try{localStorage.removeItem('tripo-studio-project')}catch{};const list=await api('/projects');setProjects(list);if(list[0])await load(list[0].id,true);setMessage(`项目根目录已切换并写入配置（重启 DSH 后仍使用）：${next.storage?.directory||''}。旧数据未迁移、未删除；${list.length?`已打开「${list[0].name}」，可在顶部切换项目。`:'新目录还没有项目，请新建。'}`)}
   async function saveCrop(box = rect, name = part, shapes = null) {
     if (!active) throw new Error('请先选择参考图')
     const a = await api(`/projects/${project.id}/files`, 'POST', {label: name, priority, sourceAsset: active.id, dataUrl: shapes?.length ? await cropSelectionImage(active.url,shapes,cropBackground) : await cropImage(active.url,box,cropBackground)})
@@ -240,6 +256,8 @@ export function Workflow({onPreview}) {
   const closeLibrary = () => { if (wide) setLayout({lib:false}); setDrawer(false); setSearchLib(0) }
   const toggleLibrary = () => libShown ? closeLibrary() : openLibrary()
   const generateOne = () => run(() => prepare([{kind: 'text-to-image', label: '角色定稿候选', params: imageParams()}]))
+  const editEffective = editMode === 'views' ? threeViewPrompt() : editPrompt
+  const generateEdit = () => { if (active) run(() => prepare(editSpecs({active, value: editSettings, prompt: editPrompt, mode: editMode}))) }
   const revealTasks = () => window.requestAnimationFrame(()=>rootRef.current?.querySelector('.tw-dock')?.scrollIntoView({behavior:'smooth',block:'start'}))
   const scrollToInspector = () => rootRef.current?.querySelector('.tw-inspector')?.scrollIntoView({behavior:'smooth',block:'start'})
   const pick=a=>{if(stage===1)selectSource(a);else select(a);setDrawer(false)}
@@ -247,13 +265,17 @@ export function Workflow({onPreview}) {
   const taskProps={onRename:renameAsset,onZoom:setZoomAsset,onPreview,onImage:a=>{select(a);setStage(1)},
     onCleanup:ids=>run(async()=>{const result=await api(`/projects/${project.id}/jobs/cleanup`,'POST',{confirm:true,ids});await load(project.id);setMessage(result.note+(result.skipped.length?` 跳过详情：${result.skipped.map(s=>`${s.id}：${s.reason}`).join('；')}`:''))}),
     onAction:(job,action,body)=>run(async()=>{const result=await api(`/projects/${project.id}/jobs/${job.id}/${action}`,'POST',body);await load(project.id);if(result.note)setMessage(result.note)})}
-  const modelPlanProps={images,onZoom:setZoomAsset,onRename:renameAsset,wholeAsset,onWhole:id=>{setWholeAsset(id);setChecked(prev=>prev.filter(x=>x!==id))},checked,setChecked,modelVersion,setModelVersion,faceLimit,setFaceLimit,geometry,setGeometry,options:modelOptions,setOptions:setModelOptions,convertJobs,busy,canPay,onSave:()=>run(saveDraft),onPrepare:specs=>run(()=>prepare(specs)),onPriority:(id,priority)=>run(async()=>setProject(await api(`/projects/${project.id}/assets/${id}/priority`,'PATCH',{priority})))}
+  const setPriorityOf=(id,priority)=>run(async()=>setProject(await api(`/projects/${project.id}/assets/${id}/priority`,'PATCH',{priority})))
+  const chooseSheet=id=>setSheetAsset(id)
+  const modelPlanProps={images,jobs:project?.jobs||[],onZoom:setZoomAsset,onRename:renameAsset,sheetAsset,onSheet:chooseSheet,checked,setChecked,modelVersion,setModelVersion,faceLimit,setFaceLimit,geometry,setGeometry,options:modelOptions,setOptions:setModelOptions,convertJobs,busy,canPay,onSave:()=>run(saveDraft),onPrepare:specs=>run(()=>prepare(specs)),onPriority:setPriorityOf}
+  const relPlan = planModelTasks({images, jobs: project?.jobs || [], checked, sheetAsset})
   const canvas = !project ? null : stage === 0 ? <section className="tw-panel tw-canvas-panel" aria-label="当前立绘">
       <div className="tw-section-title"><span>01 / SELECT</span><h2>{active ? active.label : '选择或生成一张立绘'}</h2></div>
       {active ? <div className="tw-hero">
         <button className="tw-output-image tw-hero-image" aria-label={`放大当前图片：${active.label}`} onClick={() => setZoomAsset(active)}><img src={active.url} alt={active.label}/></button>
         <small>{active.width}×{active.height}{active.sourceAssetId ? ' · 裁剪图' : ' · 本地资产'} · 单击放大，不上传</small>
-        <div className="tw-actions"><button className="tw-primary" onClick={() => {setWholeAsset(active.id);setStage(1)}}>使用「{active.label}」拆件 →</button><button disabled={wholeAsset===active.id} onClick={() => {setWholeAsset(active.id);setMessage(`已将「${active.label}」设为整体建模来源（未提交任务）`)}}>{wholeAsset===active.id?'已是整体建模来源':'设为整体建模来源'}</button></div>
+        <p className={`tw-gen-mode-note ${genMode==='image'?'is-image':'is-text'}`} role="note">{genMode==='image'?`图生图模式：下一次生成以「${active.label}」为输入图`:'文生图模式：下一次生成只用提示词，不使用这张图'}</p>
+        <div className="tw-actions"><button className="tw-primary" onClick={() => setStage(1)}>使用「{active.label}」拆件 →</button><button disabled={roleOf(active)==='base'&&checked.includes(active.id)} onClick={() => run(async()=>{if(roleOf(active)!=='base')setProject(await api(`/projects/${project.id}/assets/${active.id}/priority`,'PATCH',{priority:'base'}));setChecked(prev=>prev.includes(active.id)?prev:[...prev,active.id]);setMessage(`已将「${active.label}」标为基准（红）并加入建模勾选（未提交任务）`)})}>{roleOf(active)==='base'&&checked.includes(active.id)?'已标为基准并加入建模':'标为基准（红）· 加入建模'}</button></div>
       </div> : <div className="tw-canvas-empty"><div className="tw-orbit">✧</div><p>在左侧资产库导入或点击一张图片；也可以在右侧写提示词生成候选（每次都先审阅收费）。</p></div>}
     </section>
     : stage === 1 ? <CropPanel active={active} rect={rect} boxes={boxes} background={cropBackground} historyLength={cropHistory.length} picking={pickingColor} mode={selectionMode} lasso={lasso} busy={busy} images={images} origin={cropOrigin}
@@ -270,26 +292,37 @@ export function Workflow({onPreview}) {
         onSaveBoxes={()=>run(async()=>{for(let i=0;i<boxes.length;i++)await saveCrop(boxes[i],`待核对部件 ${i+1}`);await load(project.id);setBoxes([]);setCropOrigin(active.id);setMessage(`${boxes.length} 个候选裁剪已保存，仍停留在原图；请逐件核对并重命名，不会自动建模`)})}/>
     : stage === 2 ? <ModelPlan {...modelPlanProps} part="canvas"/>
     : stage === 3 ? <section className="tw-panel tw-canvas-panel" aria-label="交付"><div className="tw-section-title"><span>DELIVER / DCC</span><h2>交给 Blender 继续完成</h2></div>{models.map(a=><div className="tw-model" key={a.id}><span>◇</span><div><strong>{a.label}</strong><small>独立 {(a.format||'glb').toUpperCase()} · {(a.size/1048576).toFixed(2)} MB</small></div>{canPreviewModel(a)?<button onClick={()=>onPreview?.(a)}>3D 预览</button>:<small>请在对应3D软件打开</small>}<a href={`${a.url}&download=1`} download>下载</a></div>)}{models.length===0&&<p className="tw-placeholder">成功且下载完成的 3D 部件会出现在这里。</p>}<div className="tw-note"><h3>装配验收约束</h3><p>{ASSEMBLY_GUIDE}</p></div><button disabled={busy} onClick={()=>run(async()=>saveJson({...await api(`/projects/${project.id}/manifest`),assemblyGuide:ASSEMBLY_GUIDE},'tripo-project-manifest.json'))}>导出项目清单与装配指引</button><Info>清单不包含模型二进制。模型需逐件下载，FBX四边面请保留原始文件；未调用 DCC Bridge、未自动绑定骨骼或生成动力学。</Info></section>
-    : <Relations images={images} jobs={project.jobs} assets={project.assets} selected={selected} busy={busy} wholeAsset={wholeAsset} checked={checked}
-        onSelect={a=>select(a)} onZoom={setZoomAsset} onCrop={openCrop} onWhole={a=>{setWholeAsset(a.id);setChecked(prev=>prev.filter(x=>x!==a.id));setMessage(`已将「${a.label}」设为整体建模来源（未提交任务）`)}}
+    : <Relations images={images} jobs={project.jobs} assets={project.assets} selected={selected} busy={busy} sheetAsset={relPlan.sheetId} checked={checked}
+        onSelect={a=>select(a)} onZoom={setZoomAsset} onCrop={openCrop} onSheet={a=>{chooseSheet(a.id);setMessage(`已将「${a.label}」设为整张拆件图：勾选的次要（蓝）部件将随它一次建模（未提交任务）`)}} onPriority={setPriorityOf}
         onCheck={(id,on)=>setChecked(prev=>on?(prev.includes(id)?prev:[...prev,id]):prev.filter(x=>x!==id))} onPreview={onPreview} canPreviewModel={canPreviewModel}/>
   const inspector = !project ? null : stage === 0 ? <>
       <div className="tw-insp-body">
-        <h3 className="tw-insp-title">文生图 · 提示词</h3>
-        <label>角色提示词<textarea aria-label="角色提示词" rows={7} maxLength={6000} value={prompt} onChange={e => setPrompt(e.target.value)} /></label>
-        <Info>建议突出比例、材质、部件边界、完整四肢与干净背景；选定参考图后再进入 3D。四张不是 API 的 n=4 参数，而是四次独立任务；中途异常会停止后续提交。实际扣费以 Tripo 账户结算为准。</Info>
-        <PromptHint model={model} prompt={prompt}/><ImageSettings value={{model,quality,size}} onChange={setImageSettings}/>
-        <button disabled={busy} onClick={() => run(saveDraft)}>保存提示词</button>
-        {active ? <ImageEdit active={active} value={editSettings} onChange={setEditSettings} prompt={editPrompt} onPrompt={setEditPrompt} mode={editMode} onMode={setEditMode} busy={busy} canPay={canPay} onPrepare={specs=>run(()=>prepare(specs))}/> : <p className="tw-placeholder">选择一张图片后，可在这里图生图改写或生成三视图。</p>}
+        <div className="tw-gen-tabs" role="tablist" aria-label="生成方式">
+          <button type="button" role="tab" aria-selected={genMode==='text'} className="tw-gen-tab is-text" onClick={()=>setGenMode('text')}><b>文生图</b><small>只用提示词，不使用任何图片</small></button>
+          <button type="button" role="tab" aria-selected={genMode==='image'} className="tw-gen-tab is-image" onClick={()=>setGenMode('image')}><b>图生图</b><small>{active?`以「${active.label}」为输入图`:'先在资产库选择一张输入图'}</small></button>
+        </div>
+        {genMode==='text' ? <div role="tabpanel" aria-label="文生图设置">
+          <h3 className="tw-insp-title">文生图 · 提示词</h3>
+          <label>角色提示词<textarea aria-label="角色提示词" rows={7} maxLength={6000} value={prompt} onChange={e => setPrompt(e.target.value)} /></label>
+          <Info>文生图不上传、也不参考画布上的图片。建议突出比例、材质、部件边界、完整四肢与干净背景；选定参考图后再进入 3D。四张不是 API 的 n=4 参数，而是四次独立任务；中途异常会停止后续提交。实际扣费以 Tripo 账户结算为准。</Info>
+          <PromptHint model={model} prompt={prompt}/><ImageSettings value={{model,quality,size}} onChange={setImageSettings}/>
+          <button disabled={busy} onClick={() => run(saveDraft)}>保存提示词</button>
+        </div> : <div role="tabpanel" aria-label="图生图设置">
+          {active ? <><div className="tw-gen-input"><button className="tw-output-image" aria-label={`放大图生图输入图：${active.label}`} onClick={()=>setZoomAsset(active)}><img src={active.url} alt={active.label}/></button><div><strong>输入图：{active.label}</strong><small>{active.width}×{active.height} · 会上传这张图；换输入图请在资产库点选</small></div></div>
+            <ImageEdit active={active} value={editSettings} onChange={setEditSettings} prompt={editPrompt} onPrompt={setEditPrompt} mode={editMode} onMode={setEditMode} busy={busy} canPay={canPay} onPrepare={specs=>run(()=>prepare(specs))} showAction={false}/>
+            <button disabled={busy} onClick={() => run(saveDraft)}>保存图生图设置</button></>
+            : <p className="tw-placeholder">图生图需要一张输入图：请在左侧资产库导入或点选图片。只想用提示词生成，请切换到「文生图」。</p>}
+        </div>}
       </div>
-      <div className="tw-insp-foot"><button className="tw-primary" disabled={busy || !canPay} onClick={generateOne}>生成 1 张 · 先确认</button><button disabled={busy || !canPay} onClick={() => run(() => prepare(Array.from({length: 4}, (_, i) => ({kind: 'text-to-image', label: `角色候选 ${i + 1}`, params: imageParams()}))))}>四张候选 · 4 个独立收费任务</button></div>
+      <div className="tw-insp-foot">{genMode==='text'?<><button className="tw-primary" disabled={busy || !canPay} onClick={generateOne}>文生图 · 生成 1 张 · 先确认</button><button disabled={busy || !canPay} onClick={() => run(() => prepare(Array.from({length: 4}, (_, i) => ({kind: 'text-to-image', label: `角色候选 ${i + 1}`, params: imageParams()}))))}>文生图 · 四张候选 · 4 个独立收费任务</button></>
+        :<button className="tw-primary" disabled={busy||!canPay||!active||!editEffective.trim()} onClick={generateEdit}>{editMode==='views'?'图生图 · 生成三视图 · 先确认':'图生图 · 生成改写图 · 先确认'}</button>}</div>
     </>
     : stage === 1 ? <>
       <div className="tw-insp-body">
         <div className="tw-insp-title"><h3>拆分立绘</h3><small>本地裁剪不花积分</small></div>
         <label>拆件来源<select aria-label="拆件来源" value={selected} onChange={e => {const a=images.find(x=>x.id===e.target.value);if(a)selectSource(a);else select({id:e.target.value})}}><option value="">选择已保存图片</option>{images.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}</select></label>
         {active&&<div className="tw-source-preview tw-source-mini"><button className="tw-output-image" aria-label={`预览拆件来源：${active.label}`} onClick={()=>setZoomAsset(active)}><img src={active.url} alt={active.label}/></button><div><strong>{active.label}</strong><small>{active.width}×{active.height} · 单击预览，不上传</small></div></div>}
-        {splitMode==='part'&&<><label>部件名称<input aria-label="部件名称" value={part} maxLength={80} onChange={e => setPart(e.target.value)} /></label><div className="tw-chips">{PARTS.map(p => <button key={p.id} className={part === p.name ? 'on' : ''} onClick={() => {setPart(p.name); setPriority(p.priority)}}>{p.name}</button>)}</div><label>预算优先级<select aria-label="预算优先级" value={priority} onChange={e => setPriority(e.target.value)}><option value="high">高 · 单件精修</option><option value="base">基准 · 比例参照</option><option value="normal">普通 · 可跟随整体</option></select></label></>}
+        {splitMode==='part'&&<><label>部件名称<input aria-label="部件名称" value={part} maxLength={80} onChange={e => setPart(e.target.value)} /></label><div className="tw-chips">{PARTS.map(p => <button key={p.id} className={part === p.name ? 'on' : ''} onClick={() => {setPart(p.name); setPriority(p.priority)}}>{p.name}</button>)}</div><label>建模角色<select aria-label="建模角色" value={priority} onChange={e => setPriority(e.target.value)}><option value="high">主要（绿）· 单独建模精修</option><option value="normal">次要（蓝）· 随整张拆件图建模</option><option value="base">基准（红）· 比例参照，单独建模</option></select></label></>}
         <details className="tw-fold" open><summary>AI 拆件（收费） <span className="tw-chip">{splitMode==='sheet'?'整张拆件图':'单个部件'}</span><span className="tw-chip">{labelModel(split.model)}</span></summary>
           <label>拆图方式<select aria-label="拆图方式" value={splitMode} onChange={e=>setSplitMode(e.target.value)}><option value="sheet">整张拆件图</option><option value="part">单个部件</option></select></label>
           <ImageSettings value={split} onChange={setSplit} editing/>
@@ -311,10 +344,11 @@ export function Workflow({onPreview}) {
         </fieldset><p className="tw-note">任务列表常驻在底部任务坞；刷新只查询，不会重新提交。</p></div>
     : <>
       <div className="tw-insp-body"><h3 className="tw-insp-title">关系图说明</h3>
-        <ul className="tw-legend"><li><b>来源图</b>：没有上级的原图 / 立绘</li><li><b>↳ 本地裁剪</b>：裁剪台保存的部件（0 积分）</li><li><b>↳ AI 提取</b>：图生图任务的产出</li><li><b>→ 3D</b>：以该图为输入的图生3D任务与格式转换</li></ul>
-        <p className="tw-note">已勾选 {checked.length} 个部件{wholeAsset&&images.some(a=>a.id===wholeAsset)?` · 整体来源「${images.find(a=>a.id===wholeAsset).label}」`:' · 尚未选择整体来源'}。本页不会发起任何收费任务。</p>
+        <ul className="tw-legend"><li><b>来源图</b>：没有上级的原图 / 立绘 / 整张拆件图</li><li><b>↳ 本地裁剪</b>：裁剪台保存的部件（0 积分）</li><li><b>↳ AI 提取</b>：图生图任务的产出</li><li><b>→ 3D</b>：以该图为输入的图生3D任务；次要部件显示它们共用的拆件图模型</li></ul>
+        <div className="tw-role-legend compact">{['high','normal','base'].map(r=><span key={r} className={`tw-role-tag tw-role-${MODEL_ROLES[r].tone}`}><i aria-hidden="true"/>{MODEL_ROLES[r].name}<small>{MODEL_ROLES[r].how}</small></span>)}</div>
+        <p className="tw-note">已勾选：<span className="tw-role-ink-green">主要 {relPlan.main.length}</span> · <span className="tw-role-ink-blue">次要 {relPlan.secondary.length}</span>{relPlan.secondary.length?(relPlan.sheet?`（随拆件图「${relPlan.sheet.label}」）`:'（缺少整张拆件图）'):''} · <span className="tw-role-ink-red">基准 {relPlan.base.length}</span>。共 {relPlan.taskCount} 个建模任务；本页不会发起任何收费任务。</p>
       </div>
-      <div className="tw-insp-foot"><button onClick={()=>active?openCrop(active):setStage(1)}>打开裁剪台</button><button className="tw-primary" onClick={()=>setStage(2)}>去建模页审阅（{checked.length}）</button></div>
+      <div className="tw-insp-foot"><button onClick={()=>active?openCrop(active):setStage(1)}>打开裁剪台</button><button className="tw-primary" onClick={()=>setStage(2)}>去统一建模页审阅（{relPlan.taskCount} 个任务）</button></div>
     </>
   return <div ref={rootRef} className="tw-root tw-studio" data-stage={stage} data-narrow={narrow} data-lib={libPush?"push":drawer?"overlay":"rail"} data-dock={layout.dock ? 'open' : 'closed'}>
     <header className="tw-header tw-appbar">
@@ -324,6 +358,7 @@ export function Workflow({onPreview}) {
       <StorageSettings storage={status?.storage} busy={busy||connecting} blocked={Boolean(approval)} api={api} onChanged={storageChanged}/>
       <span className="tw-appbar-spacer"/>
       <span className={`tw-pill ${canPay ? 'ready' : ''}`} title="本地保存 · 无自动付费提交">{canPay ? '● 云端已配置 · 每次须确认' : '○ 本地工作区 · 未启用收费'}</span>
+      {status?.keyConfigured && <button type="button" className="tw-balance-pill" disabled={busy} title="查询 Tripo 国内站账户余额（GET /account/balance，不提交任务）" aria-label={balance ? `账户余额 ${formatCredits(balance.balance)}，冻结 ${formatCredits(balance.frozen)}，点击刷新` : '查询账户余额'} onClick={queryBalance}>{balance ? <>余额 <b>{formatCredits(balance.balance)}</b>{balance.frozen ? <small> · 冻结 {formatCredits(balance.frozen)}</small> : null}</> : '查询余额'}</button>}
       <button className="tw-connect" aria-expanded={settings} onClick={() => setSettings(!settings)}>连接设置</button>
     </header>
     {!status && <section className="tw-settings" aria-label="本机服务连接" aria-busy={connecting}>
@@ -334,7 +369,7 @@ export function Workflow({onPreview}) {
     {settings && <CredentialSettings status={status} busy={busy} balance={balance}
       onSave={body=>run(async()=>{const next=await api('/credentials','PUT',body);setStatus(prev=>({...prev,...next}));setApproval(null);setConsent(false);setBalance(null);setMessage('连接设置已保存，未提交生成任务；可查询余额验证密钥。')})}
       onClear={()=>run(async()=>{const next=await api('/credentials','DELETE',{confirm:true});setStatus(prev=>({...prev,...next}));setApproval(null);setConsent(false);setBalance(null);setMessage('密钥已清除，收费已关闭；不会自动取消云端任务。')})}
-      onBalance={()=>run(async()=>setBalance(await api('/balance')))}/> }
+      onBalance={queryBalance} usage={usage} onUsage={project?syncUsage:null}/> }
     {status?.upgrade && upgradeSeen!==status.upgrade.backup && <div className="tw-alert tw-upgrade" role="status">已从 {status.upgrade.from} 升级到 {status.upgrade.to}：项目、图片与任务记录均保留，升级前的索引已自动备份为 <code>backups/{status.upgrade.backup}</code>。<button onClick={setUpgradeSeen}>知道了</button></div>}
     {error && <div className="tw-alert error" role="alert">{error}<button onClick={() => setError('')}>关闭</button></div>}
     {message && <div className="tw-alert" role="status">{message}</div>}
@@ -361,12 +396,18 @@ export function Workflow({onPreview}) {
         onReviewDrafts={()=>{setApproval(drafts.slice(0,MAX_BATCH_PARTS));setConsent(false)}} taskProps={taskProps}/>
     </>}
     {project&&goBar&&!approval&&<div className="tw-gobar" role="region" aria-label="吸底快捷操作">
-      <span className="tw-gobar-text">{stage===0?(prompt.trim()?`提示词：${prompt.trim().slice(0,48)}${prompt.trim().length>48?'…':''}`:'还没有提示词'):`${STAGES[stage]} · 操作按钮在参数区`}</span>
+      <span className="tw-gobar-text">{stage===0?(genMode==='image'?(active?`图生图 · 输入图「${active.label}」`:'图生图 · 尚未选择输入图'):(prompt.trim()?`文生图 · 提示词：${prompt.trim().slice(0,48)}${prompt.trim().length>48?'…':''}`:'文生图 · 还没有提示词')):`${STAGES[stage]} · 操作按钮在参数区`}</span>
       <button type="button" onClick={()=>scrollToInspector()}>↓ 参数与操作</button>
-      {stage===0&&<button type="button" className="tw-primary" aria-label="吸底快捷：生成一张候选（先审阅确认）" disabled={busy||!canPay} onClick={generateOne}>生成 · 先确认</button>}
+      {stage===0&&(genMode==='image'?<button type="button" className="tw-primary" aria-label="吸底快捷：图生图生成（先审阅确认）" disabled={busy||!canPay||!active||!editEffective.trim()} onClick={generateEdit}>图生图 · 生成 · 先确认</button>
+        :<button type="button" className="tw-primary" aria-label="吸底快捷：文生图生成一张候选（先审阅确认）" disabled={busy||!canPay} onClick={generateOne}>文生图 · 生成 · 先确认</button>)}
     </div>}
-    {approval && <div className="tw-modal" role="dialog" aria-modal="true" aria-label="收费任务确认"><div className="tw-dialog tw-approval-dialog"><span className="tw-eyebrow">REVIEW BEFORE COMMIT</span><h2>确认 {approval.length} 个独立收费任务</h2><p>图像、3D模型或提示词（依本次参数）将发送至 Tripo 国内站（<code>{TRIPO_API_BASE}</code>）。建模和格式转换分别是独立收费任务，不会自动转换；实际费用按账户结算。四张候选就是四次独立提交。</p><div className="tw-approval-list">{approval.map(d=><article key={d.id}><strong>{d.label} · {d.kind}</strong><pre>{JSON.stringify(d.params,null,2)}</pre><small>{d.kind==='model-convert'?`格式转换到 ${d.params.format} · 新增独立收费任务，不自动触发`:d.kind==='image-to-model'?(d.role==='whole'?'整体打底 · 独立收费，未自动装配':'独立部件 · 不含整体建模费用'):priceText(d.params.model,d.params.quality)}<br/>输入哈希：{d.inputHash||'纯文本'}<br/>审批绑定国内站、当前图片、参数与账户；后续改图需重新准备。</small></article>)}</div><label className="tw-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>我已核对上述输入与任务数量，同意数据上传及实际积分扣除。</label><div className="tw-actions"><button disabled={busy} onClick={()=>run(cancelApproval)}>取消并丢弃草稿</button><button className="tw-primary" disabled={!consent||busy||!canPay} onClick={()=>run(confirm)}>确认上传并提交 {approval.length} 个任务</button></div></div></div>}
-    {deleteImage&&<div className="tw-modal" role="dialog" aria-modal="true" aria-label="删除参考图确认"><div className="tw-dialog"><h2>删除本机参考图？</h2><p>即将删除「{deleteImage.label}」的本地文件和资产记录，此操作不可撤回。云端任务和其他文件不会受影响。</p>{deleteImageError&&<p className="tw-danger" role="alert">{deleteImageError}</p>}<div className="tw-actions"><button disabled={busy} onClick={()=>setDeleteImage(null)}>保留图片</button><button disabled={busy} onClick={()=>run(async()=>{const id=deleteImage.id;setDeleteImageError('');try{await api(`/projects/${project.id}/assets/${id}/delete`,'POST',{confirm:true})}catch(e){setDeleteImageError(e.message);return}setDeleteImage(null);if(selected===id)setSelected('');if(wholeAsset===id)setWholeAsset('');await load(project.id);setMessage('已删除本机参考图及资产记录')})}>确认删除本机图片</button></div></div></div>}
+    {approval && <div className="tw-modal" role="dialog" aria-modal="true" aria-label="收费任务确认"><div className="tw-dialog tw-approval-dialog"><span className="tw-eyebrow">REVIEW BEFORE COMMIT</span><h2>确认 {approval.length} 个独立收费任务</h2><p>图像、3D模型或提示词（依本次参数）将发送至 Tripo 国内站（<code>{TRIPO_API_BASE}</code>）。建模和格式转换分别是独立收费任务，不会自动转换；实际费用按账户结算。四张候选就是四次独立提交。</p>
+      <BalanceCheck balance={balance} estimate={estimateBatch(approval)} busy={busy} canQuery={Boolean(status?.keyConfigured)} onQuery={queryBalance}/>
+      <div className="tw-approval-list">{approval.map(d=>{const input=d.params?.input_asset&&images.find(a=>a.id===d.params.input_asset),est=estimateJobCredits(d);return <article key={d.id} data-kind={d.kind}><strong>{d.label} · <span className={`tw-kind-tag kind-${d.kind}`}>{KIND_LABEL[d.kind]||d.kind}</span> <code>{d.kind}</code></strong>
+        {input&&<div className="tw-approval-input"><img src={input.url} alt={input.label}/><small>{d.kind==='image-to-image'?'图生图输入图':'建模输入图'}：{input.label}</small></div>}
+        {d.kind==='text-to-image'&&<small className="tw-approval-noinput">文生图：不上传任何图片，只发送提示词。</small>}
+        <pre>{JSON.stringify(d.params,null,2)}</pre><small>{d.kind==='model-convert'?`格式转换到 ${d.params.format} · 新增独立收费任务，不自动触发`:d.kind==='image-to-model'?(d.role==='sheet'?`整张拆件图 · 代替 ${d.covers?.length??0} 个次要部件一次建模 · 1 个独立收费任务，不自动拆分或装配`:d.role==='whole'?'整体打底（旧版计划）· 独立收费，未自动装配':`${jobRoleLabel(d)} · 独立收费任务`):priceText(d.params.model,d.params.quality)}<br/>参考积分：{est===null?'未能按公开表估算':`约 ${est}`}<br/>输入哈希：{d.inputHash||'纯文本'}<br/>审批绑定国内站、当前图片、参数与账户；后续改图需重新准备。</small></article>})}</div><label className="tw-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>我已核对上述输入与任务数量，同意数据上传及实际积分扣除。</label><div className="tw-actions"><button disabled={busy} onClick={()=>run(cancelApproval)}>取消并丢弃草稿</button><button className="tw-primary" disabled={!consent||busy||!canPay} onClick={()=>run(confirm)}>确认上传并提交 {approval.length} 个任务</button></div></div></div>}
+    {deleteImage&&<div className="tw-modal" role="dialog" aria-modal="true" aria-label="删除参考图确认"><div className="tw-dialog"><h2>删除本机参考图？</h2><p>即将删除「{deleteImage.label}」的本地文件和资产记录，此操作不可撤回。云端任务和其他文件不会受影响。</p>{deleteImageError&&<p className="tw-danger" role="alert">{deleteImageError}</p>}<div className="tw-actions"><button disabled={busy} onClick={()=>setDeleteImage(null)}>保留图片</button><button disabled={busy} onClick={()=>run(async()=>{const id=deleteImage.id;setDeleteImageError('');try{await api(`/projects/${project.id}/assets/${id}/delete`,'POST',{confirm:true})}catch(e){setDeleteImageError(e.message);return}setDeleteImage(null);if(selected===id)setSelected('');if(wholeAsset===id)setWholeAsset('');if(sheetAsset===id)setSheetAsset('');await load(project.id);setMessage('已删除本机参考图及资产记录')})}>确认删除本机图片</button></div></div></div>}
     <ImageLightbox asset={zoomAsset} onClose={()=>setZoomAsset(null)}/>
   </div>
 }

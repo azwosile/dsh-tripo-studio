@@ -5,6 +5,7 @@ import {isCurrentSiteJob} from '../shared/site.js'
 import {validTaskId} from '../shared/task-id.js'
 import {IMAGE_MODEL_INFO} from '../shared/image-models.js'
 import {ModelThumb} from './model-thumb.jsx'
+import {KIND_LABEL,jobRoleLabel} from './model-roles.js'
 export const STATUS = {awaiting_approval:'等待审批',submitting:'提交中',submission_unknown:'提交结果未知 · 禁止自动重发',queued:'排队中',running:'生成中',success:'云端成功',failed:'失败',cancelled:'云端已取消',discarded:'草稿已丢弃'}
 const previewable=a=>a.kind==='model'&&['glb','fbx','obj','stl','gltf'].includes(a.format||'glb')
 export function TaskList({jobs,assets,busy,onAction,onPreview,onImage,onZoom,onCleanup,onRename}) {
@@ -33,12 +34,13 @@ function TaskCard({job:j,jobs,assets,busy,onAction,onPreview,onImage,onZoom,onRe
   return <article className="tw-job" data-job-id={j.id}>
     <header><strong>{j.label}</strong><span className={j.status==='submission_unknown'?'tw-danger':''}>{STATUS[j.status]||j.status}</span></header>
     <small className="tw-job-model">模型：{model}</small>
-    <small>{current?'国内站':'国际站 / 其他站历史'} · {j.kind} · {j.taskId||'无云端 task_id'} · {j.progress}%{j.importedAt?' · 手动查询导入':''}</small>
+    <small>{current?'国内站':'国际站 / 其他站历史'} · <b className={`tw-kind-tag kind-${j.kind}`}>{KIND_LABEL[j.kind]||j.kind}{j.kind==='image-to-model'?` · ${jobRoleLabel(j)}`:''}</b> · {j.kind} · {j.taskId||'无云端 task_id'} · {j.progress}%{j.importedAt?' · 手动查询导入':''}</small>
     {!current&&<p className="tw-note">历史任务已隔离：不会向国内站提交、查询或重试下载。请到原站控制台处理；已下载资产可继续本地使用。</p>}
-    <p>本地资产：{({not_started:'未开始',downloading:'下载中',downloaded:'已保存',download_failed:'下载失败，可重试'})[j.downloadStatus]||'未开始'} / 实际积分：{j.creditsConsumed??'未返回'}</p>
+    <p>本地资产：{({not_started:'未开始',downloading:'下载中',downloaded:'已保存',download_failed:'下载失败，可重试'})[j.downloadStatus]||'未开始'} / 实际积分：{j.creditsConsumed??'未返回'}{j.creditsSource==='usage'?'（来自用量记录）':''}</p>
     {j.lastRefreshedAt&&<small>最近查询：{new Date(j.lastRefreshedAt).toLocaleString()}</small>}
     {[...new Set([j.error,j.lastQueryError,j.downloadError].filter(Boolean))].map((message,i)=><p className="tw-danger" key={i}>{message}</p>)}
     {j.errorPhase&&<p className="tw-note" data-error-phase={j.errorPhase}>{j.errorPhase==='before_create'?'失败阶段：上传参考图（尚未发起收费生成，可重新准备后再次提交）':'失败阶段：提交收费任务（结果可能未知，请先按任务 ID 恢复/核对，勿直接重提）'}{j.errorDetail?` · 原因：${j.errorDetail}`:''}</p>}
+    {j.kind==='image-to-image'&&(()=>{const inp=assets.find(a=>a.kind==='image'&&a.id===j.params?.input_asset);return inp?<button type="button" className="tw-job-input" aria-label={`放大图生图输入图：${inp.label}`} onClick={()=>onZoom(inp)}><img src={inp.url} alt={inp.label}/><small>图生图输入：{inp.label}</small></button>:null})()}
     {is3d&&j.status==='success'&&<div className="tw-job-ref" role="group" aria-label={`3D 参考图：${j.label}`}>
       {inputImage&&<><button type="button" className="tw-job-ref-input" aria-label={`放大建模输入图：${inputImage.label}`} onClick={()=>onZoom(inputImage)}><img src={inputImage.url} alt={inputImage.label}/><small>输入图</small></button><span className="tw-job-ref-arrow" aria-hidden="true">→</span></>}
       {modelOut?<ModelThumb asset={modelOut} label={modelOut.label} onOpen={previewable(modelOut)?onPreview:null}/>:<span className="tw-model-thumb" data-thumb="none"><span className="tw-thumb-empty">◇<small>{j.downloadStatus==='download_failed'?'下载失败 · 重试保存后显示':'模型保存到本机后显示'}</small></span></span>}

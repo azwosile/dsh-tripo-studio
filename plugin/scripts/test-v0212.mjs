@@ -9,7 +9,7 @@ import {JobService} from '../server/service.js'
 import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const evidence=path.join(root,'..','validation','v0.3.2');fs.mkdirSync(evidence,{recursive:true})
+const evidence=path.join(root,'..','validation','v0.3.3');fs.mkdirSync(evidence,{recursive:true})
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'tripo-v0212-ui-')),calls=[]
 const client={task:async id=>{calls.push(['task',id]);throw Error('NO TASK QUERY EXPECTED')},create:async()=>{calls.push(['create']);throw Error('NO PAID SUBMIT EXPECTED')},upload:async()=>{calls.push(['upload']);throw Error('NO UPLOAD EXPECTED')}}
 const service=new JobService({directory:temp,key:'FAKE_LOCAL_V0212',enabled:true,client})
@@ -18,7 +18,7 @@ const imageA=service.store.addAsset(p.id,png,{label:'立绘A'}),imageB=service.s
 service.store.updateProject(p.id,{revision:0,draft:{selectedAsset:imageA.id}})
 const netJob=service.prepare(p.id,{kind:'image-to-model',role:'whole',label:'整体网络失败',params:{input_asset:imageA.id,model:'v3.1-20260211',face_limit:50000,texture:true,pbr:true}});Object.assign(service.store.job(p.id,netJob.id),{status:'failed',errorCode:'UPLOAD_NETWORK_ERROR',errorPhase:'before_create',errorDetail:'连接被重置',error:'参考图上传失败（连接被重置），已自动重试 3 次；尚未发起收费生成，可直接重试'});service.store.save()
 const handler=createHandler({service}),router=hostRouter(handler)
-const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.2.js',['lib/client-v0.3.2.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
+const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.3.js',['lib/client-v0.3.3.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
 const server=http.createServer((req,res)=>{const route=router.match(req.url);if(route)return route.handler(req,res);const file=allowed.get(new URL(req.url,'http://localhost').pathname);if(!file){res.statusCode=404;return res.end()}res.setHeader('content-type',file[1]);res.end(fs.readFileSync(path.join(root,file[0])))})
 await new Promise(r=>server.listen(0,'127.0.0.1',r))
 const base=`http://127.0.0.1:${server.address().port}`,passed=[],failures=[],errors=[],external=[]
@@ -39,7 +39,7 @@ try {
   page.on('pageerror',e=>errors.push(e.message))
   await page.route('**/*',route=>{const u=route.request().url();if(/^https?:/.test(u)&&!u.startsWith(base+'/')){external.push(u);return route.abort()}return route.continue()})
   await page.goto(base+'/scripts/preview.html');await expect(page.getByRole('heading',{name:'资产库'})).toBeVisible()
-  await expect(page.locator('.tw-header')).toContainText('0.3.2')
+  await expect(page.locator('.tw-header')).toContainText('0.3.3')
 
   // REQ-038 item 1: picture click selects; only delete remains as a text command; hover-only zoom.
   const tileB=page.locator('.tw-image-grid .tw-image-tile').filter({hasText:'立绘B'})
@@ -55,7 +55,10 @@ try {
   await expect(tileB.getByRole('button',{name:'已选择图片：立绘B'})).toHaveAttribute('aria-pressed','true')
   check('clicking elsewhere on the picture selects it',true)
   // REQ-039 item 2
+  // 0.3.3 REQ-069: the image-to-image panel now lives in the 图生图 tab.
+  await page.getByRole('tab',{name:/图生图/}).click()
   check('redundant prompt-edit button removed; image-to-image panel remains',await page.getByRole('button',{name:/按提示词编辑选中图/}).count()===0&&await page.getByRole('region',{name:'图生图改写与三视图'}).count()===1)
+  await page.getByRole('tab',{name:/文生图/}).click()
   // REQ-044 item 7: rename at top-right, Esc cancels, Enter saves, file hash unchanged.
   const renameB=tileB.getByRole('button',{name:'重命名图片：立绘B'}),rb=await renameB.boundingBox(),cb=await tileB.locator('.tw-image-card').boundingBox()
   check('rename control sits at the image top-right',rb.x+rb.width>cb.x+cb.width-40&&rb.y<cb.y+40)
@@ -125,14 +128,14 @@ try {
   await expect(page.getByLabel('裁剪画布',{exact:true}).locator('img')).toHaveAttribute('alt','立绘A');check('crop view offers one-click switch back to the original',true)
   await page.screenshot({path:path.join(evidence,'v0212-crop-strip.png'),fullPage:true})
 
-  // REQ-046 item 11 + REQ-047 item 10: whole-model thumbnail picker and 36 cap.
+  // REQ-046 item 11 + REQ-047 item 10 (0.3.3 REQ-067: now the split-sheet picker): thumbnail picker and 36 cap.
   await page.locator('.tw-steps button').nth(2).click()
-  const picker=page.getByLabel('完整立绘缩略图选择')
-  check('whole-model source picker shows image thumbnails',await picker.locator('img').count()===3)
-  await picker.getByRole('button',{name:'选择图片：角色正面'}).click({position:{x:10,y:10}})
-  await expect(page.getByLabel('整体建模来源',{exact:true})).toHaveValue(imageB.id);check('thumbnail click sets the whole-model source',true)
+  const picker=page.getByLabel('整张拆件图缩略图选择')
+  check('split-sheet picker shows image thumbnails',await picker.locator('img').count()===3)
+  await picker.getByRole('button',{name:'设为整张拆件图：角色正面'}).click({position:{x:10,y:10}})
+  await expect(page.getByLabel('整张拆件图',{exact:true})).toHaveValue(imageB.id);check('thumbnail click sets the split sheet',true)
   check('batch limit text is 36',await page.getByText(/最多36个/).count()>0)
-  await page.screenshot({path:path.join(evidence,'v0212-whole-picker.png'),fullPage:true})
+  await page.screenshot({path:path.join(evidence,'v0212-sheet-picker.png'),fullPage:true})
   await page.locator('.tw-steps button').nth(3).click();const netCard=page.locator(`[data-job-id="${netJob.id}"]`)
   await expect(netCard.locator('[data-error-phase=before_create]')).toContainText('尚未发起收费生成');await expect(netCard).toContainText('原因：连接被重置')
   check('upload-phase network failure shows phase, cause and that nothing was charged',true)

@@ -39,7 +39,10 @@ export function createHandler(options) {
   const storageReady=()=>{
     if(!manager())fail('当前环境没有目录选择能力',503,'STORAGE_UNAVAILABLE')
     const s=service()
-    if(activeRequests||s.locks.size||s.refreshing.size||Object.values(s.store.state.jobs).some(j=>j.status==='awaiting_approval'||j.status==='submitting'||(['queued','running'].includes(j.status)&&j.tracking!==false)))fail('先完成操作、丢弃审批草稿并暂停云任务跟踪，再切换目录',409,'STORAGE_BUSY')
+    const jobs=Object.values(s.store.state.jobs),drafts=jobs.filter(j=>j.status==='awaiting_approval').length,sending=jobs.filter(j=>j.status==='submitting').length,tracked=jobs.filter(j=>['queued','running'].includes(j.status)&&j.tracking!==false).length
+    // 0.3.3 REQ-068: say exactly what blocks the switch instead of a generic refusal.
+    if(activeRequests||s.locks.size||s.refreshing.size)fail('其他操作正在进行，请稍后再切换目录；未切换',409,'STORAGE_BUSY')
+    if(drafts||sending||tracked)fail(`当前目录还有 ${drafts} 个待审批草稿、${sending} 个提交中、${tracked} 个跟踪中的云任务。请在任务区丢弃草稿并“停止跟踪”后再切换；未切换`,409,'STORAGE_BUSY')
   }
   let csrf = randomBytes(32).toString('hex')
   const validCsrf = (token) => typeof token === 'string' && /^[a-f0-9]{64}$/.test(token) && timingSafeEqual(Buffer.from(token), Buffer.from(csrf))
@@ -76,10 +79,7 @@ export function createHandler(options) {
         return send(res,200,service().configureCredentials(body))
       }
       activeRequests++; active = true
-      if (method === 'GET' && route === '/balance') {
-        const data = await service().client.balance()
-        return send(res, 200, {balance: data?.balance ?? null, frozen: data?.frozen ?? null, note: '余额不是费用报价'})
-      }
+      if (method === 'GET' && route === '/balance') return send(res, 200, await service().balance())
       if (route === '/projects') {
         if (method === 'GET') return send(res, 200, Object.values(service().store.state.projects).map(({draft, ...p}) => p))
         if (method === 'POST') return send(res, 201, service().store.newProject((await jsonBody(req, 20000)).name))
@@ -131,6 +131,11 @@ export function createHandler(options) {
         const body=await jsonBody(req,1024)
         if(!body || Object.keys(body).some(k=>k!=='manual') || (body.manual!==undefined&&typeof body.manual!=='boolean')) fail('刷新参数无效')
         return send(res,200,await s.refresh(projectId,{manual:body.manual??false}))
+      }
+      if (tail === '/usage/sync' && method === 'POST') {
+        const body=await jsonBody(req,1024)
+        if(!body||Object.keys(body).length)fail('用量同步参数无效')
+        return send(res,200,await s.syncUsage(projectId))
       }
       if (tail === '/manifest' && method === 'GET') {
         const data = s.store.snapshot(projectId)

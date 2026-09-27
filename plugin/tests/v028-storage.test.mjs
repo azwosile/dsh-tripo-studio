@@ -25,12 +25,13 @@ test('root switch persists; per-project assets; no data or credentials migration
  assert.deepEqual(fs.readFileSync(old.file),oldState);assert.equal(new ProjectLocation(data).openStore().project(q.id).name,'new')
  const back=await m.choose(true);const restored=m.apply({selectionToken:back.selectionToken,confirm:true});assert.equal(restored.project(p.id).name,'old');assert.equal(fs.readFileSync(path.join(data,'secrets','keep.txt'),'utf8'),'NOT_A_KEY')
 })
-test('tokens required and expiring; nonempty, overlap and forged path rejected',async t=>{
+test('tokens required and expiring; nonempty gets a subfolder proposal; overlap and forged path rejected',async t=>{
  const {data,picked}=fixture(t);let clock=0;const m=new ProjectLocation(data,{picker:async()=>picked,now:()=>clock})
  assert.throws(()=>m.apply({directory:picked,confirm:true}),/失效/)
  const p=await m.choose();assert.throws(()=>m.apply({selectionToken:p.selectionToken,confirm:true,directory:picked}),/失效/)
  clock=300001;assert.throws(()=>m.apply({selectionToken:p.selectionToken,confirm:true}),/失效/)
- fs.writeFileSync(path.join(picked,'unrelated.txt'),'keep');await assert.rejects(()=>m.choose(),/空文件夹/)
+ // 0.3.3 REQ-068: a non-empty folder is no longer rejected; a dedicated child folder is proposed (created only on confirm).
+ fs.writeFileSync(path.join(picked,'unrelated.txt'),'keep');const sub=await m.choose();assert.equal(sub.subfolder,true);assert.equal(sub.directory,path.join(fs.realpathSync(picked),'Tripo Studio 项目'));assert.equal(fs.existsSync(sub.directory),false)
  assert.equal(fs.readFileSync(path.join(picked,'unrelated.txt'),'utf8'),'keep')
  const nested=path.join(data,'child');fs.mkdirSync(nested);assert.throws(()=>m.validate(nested),/独立/)
  assert.throws(()=>m.validate(data),/独立/)

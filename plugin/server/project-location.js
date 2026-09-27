@@ -4,6 +4,7 @@ import {randomBytes,randomUUID} from 'node:crypto'
 import {Store,fail} from './store.js'
 import {chooseNativeFolder} from './folder-picker.js'
 const MARKER='.tripo-studio-root.json'
+export const SUBFOLDER='Tripo Studio 项目'
 // No arbitrary client path: the sole authority to select paths is the native picker.
 export class ProjectLocation {
  constructor(directory,{picker=chooseNativeFolder,platform=process.platform,now=()=>Date.now()}={}) {
@@ -36,7 +37,18 @@ export class ProjectLocation {
   } else if(!allowEmpty||fs.readdirSync(dir).length)fail('请选择空文件夹或已有Tripo项目根；不会覆盖其他文件',409,'DIRECTORY_NOT_EMPTY')
   return dir
  }
- status(){return {directory:this.current,isDefault:this.current===this.defaultDirectory,layout:this.current===this.defaultDirectory?'legacy':'project-folders',canChoose:this.platform==='win32'}}
+ // 0.3.3 REQ-068: report what storage-location.json really says, so "it resets after restart" is diagnosable.
+ persisted(){try{const c=JSON.parse(fs.readFileSync(this.config,'utf8'));return typeof c?.directory==='string'?c.directory:null}catch{return null}}
+ status(){const saved=this.persisted();return {directory:this.current,isDefault:this.current===this.defaultDirectory,layout:this.current===this.defaultDirectory?'legacy':'project-folders',canChoose:this.platform==='win32',persisted:saved??this.defaultDirectory,persistedMatches:(saved?path.resolve(saved):this.defaultDirectory)===this.current}}
+ // A non-empty, non-Tripo folder is never written into directly: propose one new child folder instead.
+ subfolderFor(parent) {
+  for(let i=1;i<=20;i++){
+   const name=i===1?SUBFOLDER:`${SUBFOLDER} ${i}`,dir=path.join(parent,name)
+   if(!fs.existsSync(dir))return {directory:dir,create:true}
+   try{return {directory:this.validate(dir),create:false}}catch{/* occupied by something else: try the next name */}
+  }
+  fail('所选文件夹内已有多个同名子文件夹，请选择空文件夹或已有Tripo项目根',409,'DIRECTORY_NOT_EMPTY')
+ }
  openStore(){return new Store(this.current,{projectFolders:this.current!==this.defaultDirectory})}
  async choose(useDefault=false) {
   if(this.picking)fail('目录选择窗口已打开',409,'STORAGE_BUSY')
@@ -44,20 +56,35 @@ export class ProjectLocation {
   try {
    const picked=useDefault?this.defaultDirectory:await this.picker()
    if(!picked)return {cancelled:true}
-   const dir=useDefault?this.defaultDirectory:this.validate(picked)
-   this.pending={token:randomBytes(32).toString('hex'),directory:dir,expires:this.now()+300000,isDefault:useDefault}
-   return {selectionToken:this.pending.token,directory:dir,isDefault:useDefault,expiresInSeconds:300}
+   let dir=this.defaultDirectory,create=false,pickedDir=null
+   if(!useDefault){
+    pickedDir=this.canonical(picked)
+    try{dir=this.validate(pickedDir)}
+    catch(error){if(error.code!=='DIRECTORY_NOT_EMPTY')throw error;({directory:dir,create}=this.subfolderFor(pickedDir))}
+   }
+   this.pending={token:randomBytes(32).toString('hex'),directory:dir,expires:this.now()+300000,isDefault:useDefault,create,parent:pickedDir}
+   return {selectionToken:this.pending.token,directory:dir,isDefault:useDefault,expiresInSeconds:300,...(create||(pickedDir&&pickedDir!==dir)?{picked:pickedDir,subfolder:true,create}:{})}
   } finally {this.picking=false}
  }
  apply(body) {
   if(!body||body.confirm!==true||Object.keys(body).some(k=>!['selectionToken','confirm'].includes(k))||typeof body.selectionToken!=='string'||!this.pending||body.selectionToken!==this.pending.token||this.now()>this.pending.expires)fail('目录选择已失效，请重新选择并确认',409,'DIRECTORY_CONFIRM_REQUIRED')
   const candidate=this.pending;this.pending=null
+  if(candidate.create){
+   // Only the reviewed child of the reviewed parent is created; never recursive, never over an existing entry.
+   const parent=this.canonical(candidate.parent)
+   if(parent!==candidate.parent||path.dirname(candidate.directory)!==parent)fail('目录选择已变化，请重新选择',409,'DIRECTORY_CONFIRM_REQUIRED')
+   if(fs.existsSync(candidate.directory))fail('子文件夹已被其他程序创建，请重新选择',409,'DIRECTORY_CONFIRM_REQUIRED')
+   fs.mkdirSync(candidate.directory)
+  }
   const dir=candidate.isDefault?this.defaultDirectory:this.validate(candidate.directory)
   if(!candidate.isDefault&&!fs.existsSync(path.join(dir,MARKER)))fs.writeFileSync(path.join(dir,MARKER),JSON.stringify({owner:'dsh-tripo-studio',version:1,layout:'project-folders'})+'\n',{flag:'wx'})
   const next=new Store(dir,{projectFolders:!candidate.isDefault})
   fs.mkdirSync(this.defaultDirectory,{recursive:true})
   const temp=this.config+'.'+randomUUID()+'.tmp'
   try{fs.writeFileSync(temp,JSON.stringify({version:1,directory:dir})+'\n',{flag:'wx'});fs.renameSync(temp,this.config)}finally{if(fs.existsSync(temp))fs.unlinkSync(temp)}
+  // Read back what was written: a switch that would not survive a restart must fail loudly here.
+  const saved=this.persisted()
+  if(!saved||path.resolve(saved)!==dir)fail('目录配置写入后读回不一致，未切换',500,'STORAGE_CONFIG_INVALID')
   this.current=dir;return next
  }
 }

@@ -28,8 +28,12 @@ export function buildRelations(images, jobs, assets) {
   const visible = jobs.filter(j => j.hidden !== true)
   // 0.3.1 REQ-059: a model built from a job output (input_job) is linked to that job's image too.
   const usesImage = (j, id) => j.params?.input_asset === id || (j.params?.input_job && jobImageOutputs(jobsById.get(j.params.input_job), imageIds).includes(id))
-  const modelJobs = id => visible.filter(j => j.kind === 'image-to-model' && usesImage(j, id)).map(j => ({
+  // 0.3.3 REQ-072: a secondary part is modelled through the split-sheet task that lists it in job.covers.
+  const covering = (j, id) => !usesImage(j, id) && Array.isArray(j.covers) && j.covers.includes(id)
+  // Discarded drafts never reached Tripo; they only add noise next to real models (0.3.3 REQ-072).
+  const modelJobs = id => visible.filter(j => j.kind === 'image-to-model' && j.status !== 'discarded' && (usesImage(j, id) || covering(j, id))).map(j => ({
     job: j,
+    covered: covering(j, id),
     models: assets.filter(a => a.kind === 'model' && (j.assetIds?.includes(a.id) || a.sourceJobId === j.id)),
     converts: visible.filter(c => c.kind === 'model-convert' && c.params?.input_job === j.id).map(c => ({job: c, models: assets.filter(a => a.kind === 'model' && (c.assetIds?.includes(a.id) || a.sourceJobId === c.id))}))
   }))

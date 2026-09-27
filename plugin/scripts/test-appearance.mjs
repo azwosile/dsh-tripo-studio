@@ -9,12 +9,12 @@ import {JobService} from '../server/service.js'
 import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const evidence = path.join(root, '..', 'validation','v0.3.2')
+const evidence = path.join(root, '..', 'validation','v0.3.3')
 fs.mkdirSync(evidence, {recursive:true})
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'tripo-appearance-'))
 const handler = createHandler({service:new JobService({directory:temporary, key:'', enabled:false})})
 const allowed = new Map([
-  ['/scripts/preview.html','scripts/preview.html'], ['/lib/client-v0.3.2.js','lib/client-v0.3.2.js'],
+  ['/scripts/preview.html','scripts/preview.html'], ['/lib/client-v0.3.3.js','lib/client-v0.3.3.js'],
   ['/node_modules/react/umd/react.development.js','node_modules/react/umd/react.development.js'],
   ['/node_modules/react-dom/umd/react-dom.development.js','node_modules/react-dom/umd/react-dom.development.js'],
 ])
@@ -286,7 +286,7 @@ try {
       if(!readable)throw Error('unreadable option '+mode)
     }
     await page.locator('.tw-steps button').nth(1).click()
-    await expect(page.getByLabel('预算优先级').locator('option').first()).toHaveCSS('color','rgb(237, 244, 247)')
+    await expect(page.getByLabel('建模角色').locator('option').first()).toHaveCSS('color','rgb(237, 244, 247)')
     await page.locator('.tw-steps button').nth(0).click()
     await page.screenshot({path:path.join(evidence,'transparent-controls.png'),fullPage:true})
     await page.getByRole('button',{name:'界面外观',exact:true}).click()

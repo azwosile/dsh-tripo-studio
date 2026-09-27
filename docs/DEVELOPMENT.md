@@ -27,8 +27,8 @@ npm test
 
 构建产物：
 
-- `plugin/lib/client-v0.3.2.js`：正式插件入口，仓库保留此当前构建。
-- `Tripo-Studio-Workbench-v0.3.2.html`：根目录单文件离线预览，带 React/ReactDOM，仅供本机界面/导入预览。被 `.gitignore` 排除，默认不纳入源码发布包。
+- `plugin/lib/client-v0.3.3.js`：正式插件入口，仓库保留此当前构建。
+- `Tripo-Studio-Workbench-v0.3.3.html`：根目录单文件离线预览，带 React/ReactDOM，仅供本机界面/导入预览。被 `.gitignore` 排除，默认不纳入源码发布包。
 
 `package.json` 的 `private: true` 防止误发 npm，**不影响上传 GitHub**。不应为了 GitHub 发布而移除此保护。
 
@@ -41,10 +41,10 @@ npx playwright install chromium
 npm run test:ui
 npm run test:credentials
 npm run test:compat
-npm run test:v032
+npm run test:v033
 ```
 
-历史回归入口：`test:v029`、`test:v0210`、`test:v0211`、`test:v0212`、`test:v030`、`test:v031`。这些名字标识回归场景，测试运行的是当前客户端，不需要历史 JS bundle。
+历史回归入口：`test:v029`、`test:v0210`、`test:v0211`、`test:v0212`、`test:v030`、`test:v031`、`test:v032`。这些名字标识回归场景，测试运行的是当前客户端，不需要历史 JS bundle。
 
 测试创建临时数据及模拟供应商，不应填写真实 Key，不应访问收费 API。`test:v0210` 日志中的 FAKE provider calls 是内存替身计数，不是真实消费。测试内构造的极小几何数据用于解析验证，不是发布的模型资产；唯一图片夹具 `tests/fixtures/reference.png` 是白底绿色矩形。
 

@@ -55,9 +55,12 @@ export class JobService {
     this.key = ''; this.enabled = false; this.client = client; this.credentialSource = 'cleared'; this.storageError = false
     return this.status()
   }
-  prepare(projectId, {kind, params, label, priority = 'normal', role = 'part'}) {
+  prepare(projectId, {kind, params, label, priority = 'normal', role = 'part', covers}) {
     this.store.project(projectId)
-    if(!['high','base','normal'].includes(priority)||!['whole','part'].includes(role))fail('任务用途或优先级无效')
+    // 0.3.3 REQ-067: 'sheet' = one task on the whole split sheet that stands in for every 次要 part it covers.
+    if(!['high','base','normal'].includes(priority)||!['whole','part','sheet'].includes(role))fail('任务用途或优先级无效')
+    if(covers!==undefined&&(role!=='sheet'||kind!=='image-to-model'||!Array.isArray(covers)||covers.length>36||covers.some(id=>typeof id!=='string'||!/^[a-f0-9-]{36}$/.test(id))))fail('拆件图覆盖的部件列表无效')
+    const coverIds=covers===undefined?undefined:[...new Set(covers)].map(id=>{const a=this.store.asset(projectId,id);if(a.kind!=='image')fail('覆盖的部件必须是图片资产');return a.id})
     if (Object.values(this.store.state.jobs).filter(j => j.projectId === projectId).length >= 500) fail('当前项目任务数已达上限')
     const normalized = normalizeJob(kind, params)
     let inputHash = ''
@@ -77,8 +80,9 @@ export class JobService {
     }
     const accountHash = accountFingerprint(this.key)
     const job = {id: uid(), site: TRIPO_SITE, projectId, kind, priority, role, label: String(label || kind).slice(0, 100), params: normalized,
-      inputHash, accountHash, status: 'awaiting_approval', createdAt: new Date().toISOString(), progress: 0, downloadStatus: 'not_started', assetIds: [], costEstimate: null}
-    job.approvalHash = hash(JSON.stringify({site: TRIPO_SITE, projectId, kind, params: normalized, inputHash, accountHash, priority, role}))
+      inputHash, accountHash, status: 'awaiting_approval', createdAt: new Date().toISOString(), progress: 0, downloadStatus: 'not_started', assetIds: [], costEstimate: null, ...(coverIds ? {covers: coverIds} : {})}
+    // `covers` joins the approval binding only when present, so every pre-0.3.3 hash stays identical.
+    job.approvalHash = hash(JSON.stringify({site: TRIPO_SITE, projectId, kind, params: normalized, inputHash, accountHash, priority, role, ...(coverIds ? {covers: coverIds} : {})}))
     this.store.state.jobs[job.id] = job; this.store.save(); return publicJob(job)
   }
   async submit(projectId, id, approvalHash) {
@@ -122,6 +126,34 @@ export class JobService {
       this.store.save()
     } finally { this.locks.delete(id) }
     return publicJob(job)
+  }
+  // 0.3.3 REQ-071: official GET /account/balance (balance, frozen; ≤2 decimals). Read-only, never a paid call.
+  async balance() {
+    const data = await this.client.balance()
+    const num = v => { const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v; return Number.isFinite(n) ? Math.round(n * 100) / 100 : null }
+    return {balance: num(data?.balance), frozen: num(data?.frozen), checkedAt: new Date().toISOString(), note: '余额不是费用报价；进行中任务的额度计入冻结'}
+  }
+  // 0.3.3 REQ-071: official GET /account/usage lists credits_consumed per task. Matching entries are written
+  // to the existing job.creditsConsumed field of current-site jobs made with the same account. Never submits.
+  async syncUsage(projectId) {
+    this.store.project(projectId)
+    if (this.locks.size) fail('其他任务操作正在进行，请稍后同步用量', 409, 'USAGE_BUSY')
+    const data = await this.client.usage()
+    const rows = (Array.isArray(data) ? data : Array.isArray(data?.list) ? data.list : Array.isArray(data?.items) ? data.items : []).slice(0, 1000)
+    const account = accountFingerprint(this.key), byTask = new Map()
+    for (const j of Object.values(this.store.state.jobs)) if (j.projectId === projectId && isCurrentSiteJob(j) && validTaskId(j.taskId) && j.accountHash === account) byTask.set(j.taskId, j)
+    let updated = 0, matched = 0
+    const items = rows.flatMap(r => {
+      const taskId = typeof r?.task_id === 'string' ? r.task_id.slice(0, 128) : ''
+      const credits = typeof r?.credits_consumed === 'string' ? Number(r.credits_consumed) : r?.credits_consumed
+      if (!taskId || !Number.isFinite(credits)) return []
+      const job = byTask.get(taskId)
+      if (job) { matched++; if (job.creditsConsumed !== credits) { job.creditsConsumed = credits; job.creditsSource = 'usage'; updated++ } }
+      return [{taskId, type: typeof r.type === 'string' ? r.type.slice(0, 40) : '', credits: Math.round(credits * 100) / 100, createdAt: typeof r.created_at === 'string' ? r.created_at.slice(0, 40) : '', jobId: job?.id ?? null, label: job?.label ?? null}]
+    })
+    if (updated) this.store.save()
+    const projectTotal = items.filter(i => i.jobId).reduce((n, i) => n + i.credits, 0)
+    return {items: items.slice(0, 200), total: items.length, matched, updated, projectTotal: Math.round(projectTotal * 100) / 100, checkedAt: new Date().toISOString(), project: this.store.snapshot(projectId)}
   }
   discard(projectId, id) {
     const job = this.store.job(projectId, id)

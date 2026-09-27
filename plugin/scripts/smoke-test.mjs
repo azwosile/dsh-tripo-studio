@@ -11,7 +11,7 @@ import {JobService} from '../server/service.js'
 import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const evidence = path.join(root, '..', 'validation','v0.3.2'); fs.mkdirSync(evidence, {recursive: true})
+const evidence = path.join(root, '..', 'validation','v0.3.3'); fs.mkdirSync(evidence, {recursive: true})
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'tripo-ui-test-'))
 const fixture = fs.readFileSync(path.join(root, 'tests/fixtures/reference.png'))
 function triangleGlb() {
@@ -35,7 +35,7 @@ const storageManager=new ProjectLocation(service.store.directory,{picker:async()
 const handler = createHandler({service,storageManager})
 const allowed = new Map([
   ['/scripts/preview.html',['scripts/preview.html','text/html']],
-  ['/lib/client-v0.3.2.js',['lib/client-v0.3.2.js','text/javascript']],
+  ['/lib/client-v0.3.3.js',['lib/client-v0.3.3.js','text/javascript']],
   ['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],
   ['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']],
 ])
@@ -70,7 +70,7 @@ try {
   await expect(page.getByLabel('图像质量',{exact:true})).toBeDisabled()
   await expect(page.getByLabel('输出尺寸',{exact:true})).toHaveValue('2K')
   await expect(page.locator('.tw-price-note')).toContainText('2K 5')
-  await page.getByRole('button',{name:'生成 1 张 · 先确认',exact:true}).click()
+  await page.getByRole('button',{name:'文生图 · 生成 1 张 · 先确认',exact:true}).click()
   await expect(page.locator('.tw-approval-list')).toContainText('seedream_v5')
   check('Seedream preparation omits unsupported quality',!JSON.parse(await page.locator('.tw-approval-list pre').innerText()).quality&&calls.length===0)
   await page.getByRole('button',{name:'取消并丢弃草稿',exact:true}).click()
@@ -106,12 +106,12 @@ try {
   await expect(page.locator('.tw-job').filter({hasText:'云端成功'})).toHaveCount(1)
   check('part extraction uses public image-to-image endpoint and actual parameters',calls.length===1&&calls[0].kind==='image-to-image'&&calls[0].params.model==='chat_image_2.5_sunburst'&&calls[0].params.input==='file_mock_reference'&&!('template'in calls[0].params))
   await page.locator('.tw-steps button').nth(0).click()
-  await page.getByRole('button',{name:'四张候选 · 4 个独立收费任务',exact:true}).click()
+  await page.getByRole('button',{name:'文生图 · 四张候选 · 4 个独立收费任务',exact:true}).click()
   await expect(dialog.locator('.tw-approval-list article')).toHaveCount(4)
   await dialog.getByRole('button',{name:'取消并丢弃草稿',exact:true}).click()
   await expect(dialog).toHaveCount(0)
   check('canceling four-image approval sends zero paid requests',calls.length===1)
-  await page.getByRole('button',{name:'四张候选 · 4 个独立收费任务',exact:true}).click()
+  await page.getByRole('button',{name:'文生图 · 四张候选 · 4 个独立收费任务',exact:true}).click()
   await dialog.getByRole('checkbox').check()
   await dialog.getByRole('button',{name:'确认上传并提交 4 个任务',exact:true}).click()
   await expect(page.locator('.tw-jobs')).toBeVisible()
@@ -121,8 +121,10 @@ try {
   await page.reload();await expect(page.getByLabel('角色提示词')).toBeVisible()
   check('page reload restores project without resubmitting',calls.length===5&&(await page.getByLabel('当前项目').inputValue())===projectId)
   await page.locator('.tw-steps button').nth(2).click()
-  await page.locator('.tw-image-grid input[type=checkbox]').first().check()
-  await page.getByRole('button',{name:'审阅并生成 1 个部件',exact:true}).click()
+  await page.locator('.tw-role-grid input[type=checkbox]').first().check()
+  // 0.3.3 REQ-067: one ticked image → one task on the unified page (主要 = own task, 次要 source = the sheet itself).
+  await page.getByRole('button',{name:'审阅建模 · 1 个任务',exact:true}).click()
+  await expect(dialog).toContainText('图生3D')
   await dialog.getByRole('checkbox').check();await dialog.getByRole('button',{name:'确认上传并提交 1 个任务',exact:true}).click()
   await page.getByRole('button',{name:'刷新任务（只查询，不重提）',exact:true}).click()
   await expect(page.locator('.tw-lib-model')).toHaveCount(1) // 0.3.0: models appear in the library at once
@@ -148,19 +150,25 @@ try {
   check('leaving 3D panel disposes its canvas',await page.locator('canvas').count()===0)
   await page.locator('.tw-steps button').nth(2).click()
   const fullId=service.store.snapshot(projectId).assets.find(a=>a.kind==='image').id
-  await page.getByLabel('整体建模来源').selectOption(fullId)
+  // 0.3.3 REQ-067: one modelling page; 主要 (green) parts are their own task, the sheet only goes when needed.
+  await page.locator('.tw-role-grid input[type=checkbox]').first().uncheck()
+  const second=page.locator('.tw-role-card').nth(1)
+  await second.getByRole('button',{name:'主要',exact:true}).click()
+  await expect(second).toHaveAttribute('data-role','high')
+  await second.locator('input[type=checkbox]').check()
+  await page.getByLabel('整张拆件图',{exact:true}).selectOption(fullId)
   await page.getByRole('button',{name:'保存建模计划',exact:true}).click()
   await expect(page.getByRole('status')).toContainText('已保存')
-  check('whole reference persists in project draft',service.store.project(projectId).draft.wholeAsset===fullId)
-  await page.screenshot({path:path.join(evidence,'whole-and-parts-plan.png'),fullPage:true})
-  await page.getByRole('button',{name:'审阅整体建模 · 1 个任务',exact:true}).click()
-  await expect(dialog).toContainText('整体打底')
-  check('whole-model preparation is a separate approved task',calls.length===6&&service.store.snapshot(projectId).jobs.some(j=>j.role==='whole'&&j.status==='awaiting_approval'))
+  check('split-sheet choice persists in project draft',service.store.project(projectId).draft.sheetAsset===fullId)
+  await page.screenshot({path:path.join(evidence,'unified-model-plan.png'),fullPage:true})
+  await page.getByRole('button',{name:'审阅建模 · 1 个任务',exact:true}).click()
+  await expect(dialog).toContainText('主要部件')
+  check('primary part is its own approved task; the unticked sheet is not resubmitted',calls.length===6&&service.store.snapshot(projectId).jobs.some(j=>j.role==='part'&&j.priority==='high'&&j.status==='awaiting_approval'))
   await dialog.getByRole('checkbox').check();await dialog.getByRole('button',{name:'确认上传并提交 1 个任务',exact:true}).click()
   await page.getByRole('button',{name:'刷新任务（只查询，不重提）',exact:true}).click()
   await page.locator('.tw-steps button').nth(3).click()
   await expect(page.locator('.tw-model')).toHaveCount(2)
-  check('whole model and fine parts remain separate GLB assets',calls.length===7&&service.store.snapshot(projectId).jobs.filter(j=>j.kind==='image-to-model').length===2)
+  check('sheet model and primary part remain separate GLB assets',calls.length===7&&service.store.snapshot(projectId).jobs.filter(j=>j.kind==='image-to-model').length===2)
   await page.locator('.tw-steps button').nth(1).click()
   await page.getByLabel('拆件图像模型').selectOption('banana2')
   await expect(page.getByLabel('拆件图像质量')).toBeDisabled();await expect(page.getByLabel('拆件输出尺寸')).toHaveValue('2K')
@@ -190,7 +198,7 @@ try {
   await page.setViewportSize({width:390,height:844})
   await page.screenshot({path:path.join(evidence,'workflow-mobile.png'),fullPage:true})
   check('390px layout has no horizontal overflow',await page.evaluate(()=>{const el=document.querySelector('.tw-root');return el.scrollWidth<=el.clientWidth+1&&document.documentElement.scrollWidth<=innerWidth+1}))
-  await page.goto(pathToFileURL(path.join(root,'..','Tripo-Studio-Workbench-v0.3.2.html')).href)
+  await page.goto(pathToFileURL(path.join(root,'..','Tripo-Studio-Workbench-v0.3.3.html')).href)
   await page.getByRole('tab',{name:'3D 预览',exact:true}).click()
   await expect(page.locator('.tps-stage canvas')).toHaveCount(1)
   check('single-file offline preview mounts without any network dependency',true)

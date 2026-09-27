@@ -22,7 +22,7 @@ if (!Array.isArray(pkg.dsh?.profile?.bundles) || !pkg.dependencies) throw new Er
 const plugin = await import(pathToFileURL(path.join(source, 'index.js')))
 const {resolveConfig} = await import(pathToFileURL(req.resolve('@deepseek-ai/cordis')))
 resolveConfig(plugin, {demoMode: false})
-for (const file of ['lib/client-v0.3.2.js', 'server/routes.js', 'shared/contracts.js', 'cordis.patch.yml']) if (!fs.existsSync(path.join(source, file))) throw new Error(`发布闭包缺失：${file}`)
+for (const file of ['lib/client-v0.3.3.js', 'server/routes.js', 'shared/contracts.js', 'cordis.patch.yml']) if (!fs.existsSync(path.join(source, file))) throw new Error(`发布闭包缺失：${file}`)
 // 0.3.0 REQ-053: user data lives outside the plugin folder and is never copied over, moved or deleted.
 const dataDirectory = process.env.TRIPO_STUDIO_DATA_DIR || path.join(process.env.APPDATA, 'dsh-desktop', 'tripo-studio')
 const inside = (child, parent) => { const r = path.relative(normalizePath(parent), normalizePath(child)); return r === '' || (!r.startsWith('..') && !path.isAbsolute(r)) }

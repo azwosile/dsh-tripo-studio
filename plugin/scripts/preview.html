@@ -21,7 +21,7 @@
   <div id="rail"><button class="on" id="row"></button></div>
   <div id="panel"></div>
 </div>
-<div id="hint">本地校验页：直接加载 lib/client-v0.3.2.js，用桩 ctx 注册槽位后渲染，不经过 DSH</div>
+<div id="hint">本地校验页：直接加载 lib/client-v0.3.3.js，用桩 ctx 注册槽位后渲染，不经过 DSH</div>
 
 <script src="../node_modules/react/umd/react.development.js"></script>
 <script src="../node_modules/react-dom/umd/react-dom.development.js"></script>
@@ -31,7 +31,7 @@
   const problems = []
   window.addEventListener('error', (event) => problems.push(String(event.message)))
 </script>
-<script src="../lib/client-v0.3.2.js"></script>
+<script src="../lib/client-v0.3.3.js"></script>
 <script>
   const table = {react: React}
   const requireShim = (spec) => {

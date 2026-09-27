@@ -11,7 +11,7 @@ import {JobService} from '../server/service.js'
 import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const evidence=path.join(root,'..','validation','v0.3.2');fs.mkdirSync(evidence,{recursive:true})
+const evidence=path.join(root,'..','validation','v0.3.3');fs.mkdirSync(evidence,{recursive:true})
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'tripo-v032-ui-')),calls=[]
 const png=fs.readFileSync(path.join(root,'tests/fixtures/reference.png'))
 /** Minimal valid binary glTF 2.0 containing one triangle. */
@@ -43,7 +43,7 @@ const failedJob=service.prepare(p.id,{kind:'image-to-model',role:'part',label:'�
 finish(failedJob,[],{downloadStatus:'download_failed',downloadError:'模拟：本机保存失败'})
 s.save()
 const handler=createHandler({service}),router=hostRouter(handler)
-const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.2.js',['lib/client-v0.3.2.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
+const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.3.js',['lib/client-v0.3.3.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
 const server=http.createServer((req,res)=>{const route=router.match(req.url);if(route)return route.handler(req,res);const file=allowed.get(new URL(req.url,'http://localhost').pathname);if(!file){res.statusCode=404;return res.end()}res.setHeader('content-type',file[1]);res.end(fs.readFileSync(path.join(root,file[0])))})
 await new Promise(r=>server.listen(0,'127.0.0.1',r))
 const base=`http://127.0.0.1:${server.address().port}`,passed=[],failures=[],errors=[],external=[]
@@ -77,9 +77,9 @@ try {
   // Q4: sticky go-bar while the action row is below the visible area.
   const gobar=page.getByRole('region',{name:'吸底快捷操作'})
   await expect(gobar).toBeVisible()
-  check('go-bar shows a prompt summary and its own generate button',await gobar.innerText().then(t=>t.includes('提示词')||t.includes('还没有提示词'))&&await gobar.getByRole('button',{name:'吸底快捷：生成一张候选（先审阅确认）'}).count()===1)
-  check('go-bar button does not collide with the real button name',await page.getByRole('button',{name:'生成 1 张 · 先确认'}).count()===1)
-  await gobar.getByRole('button',{name:'吸底快捷：生成一张候选（先审阅确认）'}).click()
+  check('go-bar shows a prompt summary and its own generate button',await gobar.innerText().then(t=>t.includes('提示词')||t.includes('还没有提示词'))&&await gobar.getByRole('button',{name:'吸底快捷：文生图生成一张候选（先审阅确认）'}).count()===1)
+  check('go-bar button does not collide with the real button name',await page.getByRole('button',{name:'文生图 · 生成 1 张 · 先确认',exact:true}).count()===1)
+  await gobar.getByRole('button',{name:'吸底快捷：文生图生成一张候选（先审阅确认）'}).click()
   const modal=page.getByRole('dialog',{name:'收费任务确认'});await expect(modal).toBeVisible()
   check('go-bar generate opens the normal approval dialog; nothing is sent',calls.length===0)
   await modal.getByRole('button',{name:'取消并丢弃草稿'}).click();await expect(modal).toHaveCount(0)
