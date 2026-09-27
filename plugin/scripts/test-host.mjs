@@ -5,7 +5,8 @@ import path from 'node:path'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import * as plugin from '../index.js'
-const appModules = process.env.DSH_APP_NODE_MODULES || (process.platform === 'win32' ? 'D:/DeepSeek Harness/DSH Desktop/resources/app/node_modules' : null)
+// DSH Desktop <=0.9 shipped resources/app; 0.10.0+ ships the runtime in resources/app.asar.unpacked.
+const appModules = process.env.DSH_APP_NODE_MODULES || (process.platform === 'win32' ? ['D:/DeepSeek Harness/DSH Desktop/resources/app.asar.unpacked/node_modules', 'D:/DeepSeek Harness/DSH Desktop/resources/app/node_modules'].find(d => fs.existsSync(path.join(d, '@deepseek-ai', 'cordis'))) : null)
 const require_ = createRequire(appModules ? path.join(appModules, '..', 'package.json') : import.meta.url)
 const cordisPath = require_.resolve('@deepseek-ai/cordis')
 const {Context, resolveConfig} = await import(pathToFileURL(cordisPath))
