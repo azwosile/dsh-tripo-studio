@@ -63,7 +63,10 @@ export async function runOfficial({uninstall = false, argv = process.argv} = {})
   let movedOld = false, movedStage = false
   try {
     fs.mkdirSync(stage, {recursive: true})
-    for (const name of RELEASE) { const from = path.join(source, name); if (fs.existsSync(from)) fs.cpSync(from, path.join(stage, name), {recursive: true, errorOnExist: true}) }
+    // lib/: only the current bundle (exports['./client']); the dev repo keeps every historical bundle side by side.
+    for (const name of RELEASE) { const from = path.join(source, name); if (!fs.existsSync(from)) continue
+      if (name === 'lib') { const client = meta.exports['./client'].replace(/^\.\//, ''); fs.mkdirSync(path.join(stage, 'lib')); fs.copyFileSync(path.join(source, client), path.join(stage, client)); continue }
+      fs.cpSync(from, path.join(stage, name), {recursive: true, errorOnExist: true}) }
     if (fs.existsSync(installed)) { fs.renameSync(installed, path.join(backup, 'previous-plugin')); movedOld = true }
     fs.renameSync(stage, installed); movedStage = true
     // pnpm copies file: directories; remove first on upgrade so the new files are really picked up.
