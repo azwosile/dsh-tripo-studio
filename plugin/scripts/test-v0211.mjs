@@ -9,7 +9,7 @@ import {JobService} from '../server/service.js'
 import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const evidence=path.join(root,'..','validation','v0.3.4');fs.mkdirSync(evidence,{recursive:true})
+const evidence=path.join(root,'..','validation','v0.3.5');fs.mkdirSync(evidence,{recursive:true})
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'tripo-v0211-ui-')),calls=[]
 const client={task:async id=>{calls.push(['task',id]);return {task_id:id,type:'text_to_image',status:'running'}},create:async()=>{calls.push(['create']);throw Error('NO LIVE OR MOCK PAID SUBMIT EXPECTED')},upload:async()=>{calls.push(['upload']);throw Error('NO UPLOAD EXPECTED')}}
 const service=new JobService({directory:temp,key:'FAKE_LOCAL_V0211',enabled:true,client})
@@ -21,7 +21,7 @@ const failed=seed('failed','失败测试'),discarded=seed('discarded','丢弃测
 // Reference protects the image and is intentionally preserved in this test.
 unknown.params.input_asset=imageB.id;service.store.save()
 const handler=createHandler({service}),router=hostRouter(handler)
-const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.4.js',['lib/client-v0.3.4.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
+const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.5.js',['lib/client-v0.3.5.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
 const server=http.createServer((req,res)=>{const route=router.match(req.url);if(route)return route.handler(req,res);const file=allowed.get(new URL(req.url,'http://localhost').pathname);if(!file){res.statusCode=404;return res.end()}res.setHeader('content-type',file[1]);res.end(fs.readFileSync(path.join(root,file[0])))})
 await new Promise(r=>server.listen(0,'127.0.0.1',r))
 const base=`http://127.0.0.1:${server.address().port}`,passed=[],failures=[],errors=[],external=[]

@@ -15,7 +15,7 @@ export const MODEL_ROLES = Object.freeze({
 // 主要/次要/基准 tag, so a sheet that is also tagged 基准 no longer shows a red (or blue) frame.
 export const SHEET_TONE = Object.freeze({name: '拆件图', tone: 'purple', color: '紫色', how: '整张送入 Tripo，次要部件共用此任务'})
 export const toneOf = (asset, sheetId) => asset?.id && asset.id === sheetId ? SHEET_TONE.tone : MODEL_ROLES[roleOf(asset)].tone
-export const KIND_LABEL = Object.freeze({'text-to-image': '文生图 · 只用提示词', 'image-to-image': '图生图 · 以参考图为输入', 'image-to-model': '图生3D', 'multiview-to-model': '多视图生3D', 'model-convert': '格式转换'})
+export const KIND_LABEL = Object.freeze({'text-to-image': '文生图 · 只用提示词', 'image-to-image': '图生图 · 以参考图为输入', 'image-to-model': '图生3D', 'multiview-to-model': '多视图生3D', 'model-convert': '格式转换', 'mesh-decimate': '重拓扑'})
 // 0.3.4 REQ-074: a failed image task whose upstream message reads like a safety/moderation rejection gets a
 // concrete hint instead of a bare error (the 0.3.3 sheet prompt failed this way).
 export const looksModerated = message => /safety|moderat|policy|sensitive|nsfw|inappropriate|content.?(filter|review)|违规|敏感|审核|安全(策略|系统|检查)|不合规/i.test(String(message || ''))

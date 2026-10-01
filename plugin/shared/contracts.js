@@ -4,7 +4,18 @@ import {IMAGE_MODELS,IMAGE_SIZES,IMAGE_MODEL_INFO,isImageSize,modelAvailable} fr
 export {IMAGE_MODELS,IMAGE_SIZES} from './image-models.js'
 export const MODEL_VERSIONS = ['v3.1-20260211', 'v3.0-20250812', 'v2.5-20250123']
 export const MODEL_FORMATS = ['GLTF', 'FBX', 'USDZ', 'OBJ', 'STL', '3MF']
-export const KINDS = ['text-to-image', 'image-to-image', 'image-to-model', 'multiview-to-model', 'model-convert']
+export const KINDS = ['text-to-image', 'image-to-image', 'image-to-model', 'multiview-to-model', 'model-convert', 'mesh-decimate']
+// 0.3.5 REQ-076: official POST /mesh/decimate (重拓扑 / 减面). v2.0 = smart retopology (30 credits, face_limit optional,
+// tri 500–20000 / quad 500–10000, bake), v1.0 = basic decimation (10 credits, face_limit required, ≤2M tri / ≤150k quad, no bake).
+export const DECIMATE_MODELS = ['v2.0', 'v1.0']
+export function decimateFaceRange(model, quad = false) {
+  if (model === 'v2.0') return quad ? [500, 10000] : [500, 20000]
+  if (model === 'v1.0') return quad ? [1, 150000] : [1, 2000000]
+  return null
+}
+// 0.3.5 REQ-077: official export_orientation (front axis). Documented on /models/convert (default +x) and on
+// the generation endpoints, where the docs recommend leaving it unset and converting via /models/convert.
+export const EXPORT_ORIENTATIONS = ['+x', '-x', '-y', '+y']
 // 0.3.4 REQ-073: official POST /generation/multiview-to-model (H series). View keys and canonical order
 // are the documented view-key format [front, left, back, right]; front is mandatory, at least 2 images.
 export const MULTIVIEW_VIEWS = ['front', 'left', 'back', 'right']
@@ -76,7 +87,7 @@ export function threeViewPrompt() {
 }
 export const ASSEMBLY_GUIDE = '在 Blender 中以 Body 为比例基准，保持各部件独立可选中。对齐头发、头部、衣服、鞋袜，保留 UV、材质及已有骨架。先检查正/侧/后视图的穿插和缝隙，再复用或创建双足骨架，验证转头、抬臂、屈肘、屈膝四个姿势。布料模拟与发束骨骼需另行制作与验证；本工作台不会自动完成装配、绑定或动力学。'
 
-const MODEL_PARAM_KEYS = ['model', 'face_limit', 'texture', 'pbr', 'geometry_quality', 'texture_quality', 'quad', 'auto_size', 'smart_low_poly', 'texture_alignment', 'orientation']
+const MODEL_PARAM_KEYS = ['model', 'face_limit', 'texture', 'pbr', 'geometry_quality', 'texture_quality', 'quad', 'auto_size', 'smart_low_poly', 'texture_alignment', 'orientation', 'export_orientation']
 const fail = (message) => { throw Object.assign(new Error(message), {status: 400, code: 'INVALID_PARAMETERS'}) }
 const pick = (value, choices, name) => choices.includes(value) ? value : fail(`${name} 不受支持`)
 export function normalizeJob(kind, raw = {}) {
@@ -87,13 +98,14 @@ export function normalizeJob(kind, raw = {}) {
     return {views: normalizeViews(raw.views), ...modelParams(raw, {autofix: false})}
   }
   const common = kind === 'image-to-model'
-    ? ['input_asset', 'input_job', 'model', 'face_limit', 'texture', 'pbr', 'geometry_quality', 'texture_quality', 'quad', 'auto_size', 'smart_low_poly', 'enable_image_autofix', 'texture_alignment', 'orientation']
-    : kind === 'model-convert' ? ['input_job', 'format', 'quad']
+    ? ['input_asset', 'input_job', 'model', 'face_limit', 'texture', 'pbr', 'geometry_quality', 'texture_quality', 'quad', 'auto_size', 'smart_low_poly', 'enable_image_autofix', 'texture_alignment', 'orientation', 'export_orientation']
+    : kind === 'model-convert' ? ['input_job', 'format', 'quad', 'export_orientation']
+    : kind === 'mesh-decimate' ? ['input_job', 'model', 'face_limit', 'quad', 'bake']
     : ['input_asset', 'input_job', 'model', 'prompt', 'size', 'quality', 'background']
   for (const key of Object.keys(raw)) if (!common.includes(key)) fail(`不支持的参数：${key}`)
   const input = {}
   if (kind !== 'text-to-image') {
-    if (kind === 'model-convert' ? !raw.input_job || raw.input_asset : Boolean(raw.input_asset) === Boolean(raw.input_job)) fail('必须且只能选择一个受支持的输入资产或任务')
+    if (kind === 'model-convert' || kind === 'mesh-decimate' ? !raw.input_job || raw.input_asset : Boolean(raw.input_asset) === Boolean(raw.input_job)) fail('必须且只能选择一个受支持的输入资产或任务')
     const key = raw.input_asset ? 'input_asset' : 'input_job'
     if (typeof raw[key] !== 'string' || !/^[a-f0-9-]{36}$/.test(raw[key])) fail('图片引用无效')
     input[key] = raw[key]
@@ -102,7 +114,19 @@ export function normalizeJob(kind, raw = {}) {
     if (typeof raw.quad !== 'undefined' && typeof raw.quad !== 'boolean') fail('四边面开关无效')
     const format = pick(raw.format, MODEL_FORMATS, '目标格式')
     if (raw.quad && format !== 'FBX') fail('四边面只支持 FBX 输出')
-    return {...input, format, ...(raw.quad ? {quad: true} : {})}
+    return {...input, format, ...(raw.quad ? {quad: true} : {}), ...exportOrientation(raw)}
+  }
+  if (kind === 'mesh-decimate') {
+    const model = pick(raw.model ?? 'v2.0', DECIMATE_MODELS, '重拓扑模型')
+    for (const k of ['quad', 'bake']) if (raw[k] !== undefined && typeof raw[k] !== 'boolean') fail(`${k} 必须为布尔值`)
+    const quad = raw.quad ?? false
+    const [lo, hi] = decimateFaceRange(model, quad)
+    if (model === 'v1.0' && raw.bake !== undefined) fail('v1.0 基础减面不支持 bake（官方说明）')
+    if (model === 'v1.0' && raw.face_limit === undefined) fail('v1.0 基础减面必须填写目标面数（官方说明）')
+    if (raw.face_limit !== undefined && (!Number.isInteger(raw.face_limit) || raw.face_limit < lo || raw.face_limit > hi))
+      fail(`${model} ${quad ? '四边面' : '三角面'}目标面数须为 ${lo}–${hi} 的整数（官方范围）`)
+    return {...input, model, ...(raw.face_limit !== undefined ? {face_limit: raw.face_limit} : {}), quad,
+      ...(model === 'v2.0' && raw.bake !== undefined ? {bake: raw.bake} : {})}
   }
   if (kind === 'image-to-model') return {...input, ...modelParams(raw, {autofix: true})}
   if (typeof raw.prompt !== 'string' || !raw.prompt.trim() || raw.prompt.length > 6000) fail('提示词须为 1–6000 个字符')
@@ -169,7 +193,12 @@ function modelParams(raw, {autofix}) {
     if (!texture) fail('图像朝向对齐要求启用贴图')
     params.orientation = pick(raw.orientation, ['default', 'align_image'], '模型朝向')
   }
-  return params
+  return {...params, ...exportOrientation(raw)}
+}
+// Omitted unless the user explicitly picks an axis, so the official default (+x) stays in force.
+function exportOrientation(raw) {
+  if (raw.export_orientation === undefined) return {}
+  return {export_orientation: pick(raw.export_orientation, EXPORT_ORIENTATIONS, '导出朝向（前向轴）')}
 }
 /** 0.3.4: local asset ids a job reads as input (single image or every multiview slot). */
 export function jobInputAssets(job) {

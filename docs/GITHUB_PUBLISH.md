@@ -51,7 +51,7 @@ git push -u origin main
 
 ## 包中包含与排除
 
-包含：源码、锁文件、当前 `client-v0.3.4.js`、必要测试、MIT/第三方声明、当前文档、打包工具和文件哈希清单。
+包含：源码、锁文件、当前 `client-v0.3.5.js`、必要测试、MIT/第三方声明、当前文档、打包工具和文件哈希清单。
 
 排除：所有个人模型/贴图/参考图，Blender/GLB/FBX/OBJ/STL/USD 等资产，`.git`、`node_modules`、运行项目、`state.json`、`secrets`、Key、日志、截图、历史 bundle、旧 ZIP/HTML 和安装备份。
 
@@ -64,13 +64,13 @@ git push -u origin main
 需要 Python 3.10+。外部 `*.zip.sha256` 是 ZIP 的 SHA-256；Windows 可先运行：
 
 ```powershell
-Get-FileHash ..\dsh-tripo-blender-v0.3.4-github-20261001.zip -Algorithm SHA256
+Get-FileHash ..\dsh-tripo-blender-v0.3.5-github-20261002.zip -Algorithm SHA256
 ```
 
 将结果与旁边的 `.sha256` 文件比较。再校验 ZIP 内逐文件哈希和严格排除规则：
 
 ```powershell
-python -B .\tools\verify_release.py ..\dsh-tripo-blender-v0.3.4-github-20261001.zip
+python -B .\tools\verify_release.py ..\dsh-tripo-blender-v0.3.5-github-20261002.zip
 # 或校验刚解压、尚未初始化 Git/安装依赖/运行测试的干净目录：
 python -B .\tools\verify_release.py .
 ```
@@ -79,21 +79,21 @@ python -B .\tools\verify_release.py .
 
 目录校验故意严格：添加 `.git`、开发依赖、测试输出或修改源码后，原快照不再逐字节相同。此时应重新审计/打包，再校验新包，不要通过删除自己的 Git 历史来迁就校验器。
 
-## 已发布仓库的版本更新（例如 0.3.3 → 0.3.4）
+## 已发布仓库的版本更新（例如 0.3.4 → 0.3.5）
 
 仓库已经初始化并推送过时，不要再 `git init` 或重新添加 remote。在本目录打开 PowerShell：
 
 ```powershell
 git status --short          # 核对只有本次版本的改动
 git add -A -- .
-git diff --cached --stat     # 旧 client-v0.3.3.js 应显示为删除，新 client-v0.3.4.js 为新增
-git commit -m "feat: DSH Tripo Studio 0.3.4 - multiview-to-model, purple split sheet, moderation-safe split prompts"
-git tag v0.3.4
+git diff --cached --stat     # 旧 client-v0.3.4.js 应显示为删除，新 client-v0.3.5.js 为新增
+git commit -m "feat: DSH Tripo Studio 0.3.5 - mesh retopology with official notes, export orientation"
+git tag v0.3.5
 git push origin main
-git push origin v0.3.4
+git push origin v0.3.5
 ```
 
-可选：在 GitHub 的 **Releases → Draft a new release** 选择标签 `v0.3.4`，把 `dsh-tripo-blender-v0.3.4-github-20261001.zip` 及其 `.sha256` 作为附件上传。使用 GitHub Desktop 时同理：检查 Changes → 填写提交说明 → Commit to main → Push origin；标签可在 History 中右键提交创建后再推送。
+可选：在 GitHub 的 **Releases → Draft a new release** 选择标签 `v0.3.5`，把 `dsh-tripo-blender-v0.3.5-github-20261002.zip` 及其 `.sha256` 作为附件上传。使用 GitHub Desktop 时同理：检查 Changes → 填写提交说明 → Commit to main → Push origin；标签可在 History 中右键提交创建后再推送。
 
 ## 以后如何重新打包
 

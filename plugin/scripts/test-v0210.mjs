@@ -11,7 +11,7 @@ import {JobService} from '../server/service.js'
 import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const evidence=path.join(root,'..','validation','v0.3.4');fs.mkdirSync(evidence,{recursive:true})
+const evidence=path.join(root,'..','validation','v0.3.5');fs.mkdirSync(evidence,{recursive:true})
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'tripo-v0210-ui-'))
 const fixture=fs.readFileSync(path.join(root,'tests/fixtures/reference.png'))
 function triangleGlb(){
@@ -37,7 +37,7 @@ const client={
 }
 const service=new JobService({directory:path.join(temp,'data'),key:'FAKE_V0210_LOCAL_ONLY',enabled:true,client,downloader:async url=>url.endsWith('.glb')?triangleGlb():fixture})
 const handler=createHandler({service}),routing=hostRouter(handler)
-const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.4.js',['lib/client-v0.3.4.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
+const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.5.js',['lib/client-v0.3.5.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
 const server=http.createServer((req,res)=>{const route=routing.match(req.url);if(route)return route.handler(req,res);const file=allowed.get(new URL(req.url,'http://localhost').pathname);if(!file){res.statusCode=404;return res.end()}res.setHeader('content-type',file[1]);res.end(fs.readFileSync(path.join(root,file[0])))})
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
 const base=`http://127.0.0.1:${server.address().port}`

@@ -101,7 +101,7 @@ function ModelStatus({entry, busy, onPreview, canPreviewModel}) {
     {covered && <small className="tw-role-ink-blue">随整张拆件图建模</small>}
     <span className={`tw-chip ${tone}`}>{jobRoleLabel(job)} · {STATUS[job.status] || job.status}{['queued', 'running'].includes(job.status) ? ` ${job.progress ?? 0}%` : ''}</span>
     {models.map(m => <span className="tw-rel-file" key={m.id}>{(m.format || 'glb').toUpperCase()}{canPreviewModel(m) && <button type="button" disabled={busy} aria-label={`3D 预览：${m.label}`} onClick={() => onPreview?.(m)}>预览</button>}<a href={`${m.url}&download=1`} download aria-label={`下载模型：${m.label}`}>↓</a></span>)}
-    {converts.map(cv => <span className="tw-rel-file" key={cv.job.id}>→ {cv.job.params?.format} · {STATUS[cv.job.status] || cv.job.status}{cv.models.map(m => <a key={m.id} href={`${m.url}&download=1`} download aria-label={`下载模型：${m.label}`}>↓</a>)}</span>)}
+    {converts.map(cv => <span className="tw-rel-file" key={cv.job.id}>→ {cv.job.kind === 'mesh-decimate' ? `重拓扑 ${cv.job.params?.model || ''}` : cv.job.params?.format} · {STATUS[cv.job.status] || cv.job.status}{cv.models.map(m => <a key={m.id} href={`${m.url}&download=1`} download aria-label={`下载模型：${m.label}`}>↓</a>)}</span>)}
   </div>
 }
 

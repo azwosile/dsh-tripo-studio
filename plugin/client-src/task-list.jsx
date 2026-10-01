@@ -25,10 +25,10 @@ function TaskCard({job:j,jobs,assets,busy,onAction,onPreview,onImage,onZoom,onRe
   const [taskId,setTaskId]=React.useState(''),[confirmed,setConfirmed]=React.useState(false)
   const [remove,setRemove]=React.useState(false),[deleteAssets,setDeleteAssets]=React.useState(false)
   const current=isCurrentSiteJob(j),outputs=assets.filter(a=>j.assetIds?.includes(a.id)||a.sourceJobId===j.id)
-  const model=j.kind==='model-convert'?`独立格式转换 → ${j.params?.format||'未知'}`:IMAGE_MODEL_INFO[j.params?.model]?.label||j.params?.model||'历史记录未保存'
+  const model=j.kind==='model-convert'?`独立格式转换 → ${j.params?.format||'未知'}${j.params?.export_orientation?` · 前向 ${j.params.export_orientation}`:''}`:j.kind==='mesh-decimate'?`独立重拓扑 · ${j.params?.model==='v1.0'?'v1.0 基础减面':'v2.0 智能重拓扑'} · ${j.params?.face_limit?`${j.params.face_limit} 面`:'面数自适应'}${j.params?.quad?' · 四边面':''}`:IMAGE_MODEL_INFO[j.params?.model]?.label||j.params?.model||'历史记录未保存'
   const retain=requiresRetention(j,jobs)
   // 0.3.1 REQ-058: finished 3D tasks show input image → locally rendered 3D reference image.
-  const is3d=['image-to-model','multiview-to-model','model-convert'].includes(j.kind),srcJob=j.kind==='model-convert'?jobs.find(x=>x.id===j.params?.input_job):j
+  const is3d=['image-to-model','multiview-to-model','model-convert','mesh-decimate'].includes(j.kind),srcJob=j.kind==='model-convert'||j.kind==='mesh-decimate'?jobs.find(x=>x.id===j.params?.input_job):j
   const inputImage=is3d?assets.find(a=>a.kind==='image'&&a.id===(srcJob?.params?.input_asset||srcJob?.params?.views?.front)):null
   const modelOut=outputs.find(a=>previewable(a))||outputs.find(a=>a.kind==='model')
   const removeLabel=retain?'从列表移除':`删除${({success:'成功',failed:'失败',discarded:'丢弃',cancelled:'取消',awaiting_approval:'草稿'})[j.status]||''}记录`

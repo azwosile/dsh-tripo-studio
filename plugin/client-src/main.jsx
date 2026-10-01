@@ -22,6 +22,7 @@ import {appearanceCss} from './appearance-styles.js'
 import {studioCss} from './studio-styles.js'
 import {v033Css} from './v033-styles.js'
 import {v034Css,v034ApprovalCss} from './v034-styles.js'
+import {v035Css} from './v035-styles.js'
 
 const NS = 'tripoStudio'
 const PANEL_ID = 'tripo-studio'
@@ -227,7 +228,7 @@ function injectStyles() {
   const tag = document.createElement('style')
   tag.id = STYLE_ID
   tag.setAttribute('data-plugin-css', 'dsh-tripo-studio')
-  tag.textContent = css + workflowCss + appearanceCss + credentialCss + studioCss + v033Css + v034Css + v034ApprovalCss
+  tag.textContent = css + workflowCss + appearanceCss + credentialCss + studioCss + v033Css + v034Css + v034ApprovalCss + v035Css
   document.head.appendChild(tag)
   return () => tag.remove()
 }

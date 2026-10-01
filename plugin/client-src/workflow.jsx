@@ -1,10 +1,11 @@
 import React from 'react'
 import {ImageEdit,editSpecs} from './image-edit.jsx'
-import {threeViewPrompt,MULTIVIEW_VIEWS,MULTIVIEW_LABELS} from '../shared/contracts.js'
+import {threeViewPrompt,MULTIVIEW_VIEWS,MULTIVIEW_LABELS,EXPORT_ORIENTATIONS} from '../shared/contracts.js'
 import {CropPanel} from './crop-panel.jsx'
 import {ImageTile} from './image-card.jsx'
 import {ImageLightbox} from './image-lightbox.jsx'
 import {defaultModelOptions} from './model-plan.jsx'
+import {RetopoOfficialTips,ORIENTATION_GEN_TIP} from './retopo-panel.jsx'
 import {validTaskId} from '../shared/task-id.js'
 import {PromptHint} from './prompt-hint.jsx'
 import {isCurrentSiteJob,TRIPO_API_BASE} from '../shared/site.js'
@@ -24,7 +25,7 @@ import {estimateBatch,estimateJobCredits,formatCredits} from '../shared/credit-e
 
 const STATUS = {awaiting_approval: '等待审批', submitting: '提交中', submission_unknown: '提交结果未知 · 禁止自动重发', queued: '排队中', running: '生成中', success: '云端成功', failed: '失败', cancelled: '云端已取消', discarded: '草稿已丢弃'}
 const STAGES = ['生图定稿', '拆件与裁剪', '统一建模', '交付与导入', '来源 → 部件']
-const APP_VERSION = '0.3.4'
+const APP_VERSION = '0.3.5'
 function saveJson(value, name) {
   const blob = new Blob([JSON.stringify(value, null, 2)], {type: 'application/json'}), url = URL.createObjectURL(blob)
   const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
@@ -87,7 +88,8 @@ export function Workflow({onPreview}) {
       const opts={...defaultModelOptions,texture:p.draft?.modelTexture!=='false',pbr:p.draft?.modelTexture!=='false'&&p.draft?.modelPbr!=='false',
         textureQuality:['standard','detailed','extreme'].includes(p.draft?.modelTextureQuality)?p.draft.modelTextureQuality:'standard',
         quad:!old&&p.draft?.modelQuad==='true',smart:!old&&p.draft?.modelSmart==='true',autoSize:!old&&p.draft?.modelAutoSize==='true',
-        autofix:p.draft?.modelAutofix==='true',textureAlignment:p.draft?.modelTextureAlignment==='geometry'?'geometry':'original_image',orientation:p.draft?.modelOrientation==='align_image'?'align_image':'default'}
+        autofix:p.draft?.modelAutofix==='true',textureAlignment:p.draft?.modelTextureAlignment==='geometry'?'geometry':'original_image',orientation:p.draft?.modelOrientation==='align_image'?'align_image':'default',
+        exportOrientation:EXPORT_ORIENTATIONS.includes(p.draft?.modelExportOrientation)?p.draft.modelExportOrientation:''}
       setModelVersion(mv);setGeometry(g);setModelOptions(opts)
       setFaceLimit(Math.min(modelFaceMax(mv,{quad:opts.quad,smart:opts.smart,geometry:g}),Math.max(500,Number(p.draft?.modelFaceLimit)||50000)))
       setPart(p.draft?.partName || '头发'); setPriority(p.draft?.partPriority || 'high')
@@ -187,7 +189,7 @@ export function Workflow({onPreview}) {
     const p = await api(`/projects/${project.id}`, 'PATCH', {revision: project.revision, draft: {prompt, model, quality, size, selectedAsset: selected, partName: part, partPriority: priority,splitModel:split.model,splitQuality:split.quality,splitSize:split.size,wholeAsset,splitMode,editPrompt,editMode,editModel:editSettings.model,editSize:editSettings.size,editQuality:editSettings.quality,
       modelVersion,modelFaceLimit:String(faceLimit),modelGeometry:geometry,modelTexture:String(modelOptions.texture),modelPbr:String(modelOptions.pbr),
       modelTextureQuality:modelOptions.textureQuality,modelQuad:String(modelOptions.quad),modelSmart:String(modelOptions.smart),modelAutoSize:String(modelOptions.autoSize),
-      modelAutofix:String(modelOptions.autofix),modelTextureAlignment:modelOptions.textureAlignment,modelOrientation:modelOptions.orientation,splitSheetPrompt:sheetPromptText||'',splitPartPrompt:partPromptText||'',sheetAsset,genMode}})
+      modelAutofix:String(modelOptions.autofix),modelTextureAlignment:modelOptions.textureAlignment,modelOrientation:modelOptions.orientation,modelExportOrientation:modelOptions.exportOrientation||'',splitSheetPrompt:sheetPromptText||'',splitPartPrompt:partPromptText||'',sheetAsset,genMode}})
     setProject(prev => ({...prev, ...p})); setMessage('提示词与选择已保存到本机项目')
   }
   async function importFiles(files) {
@@ -407,7 +409,9 @@ export function Workflow({onPreview}) {
         {input&&<div className="tw-approval-input"><img src={input.url} alt={input.label}/><small>{d.kind==='image-to-image'?'图生图输入图':'建模输入图'}：{input.label}</small></div>}
         {d.kind==='multiview-to-model'&&<div className="tw-approval-views" aria-label="多视图输入">{MULTIVIEW_VIEWS.filter(v=>d.params?.views?.[v]).map(v=>{const a=images.find(x=>x.id===d.params.views[v]);return a?<div className="tw-approval-input" key={v}><img src={a.url} alt={a.label}/><small>{MULTIVIEW_LABELS[v]}：{a.label}</small></div>:null})}</div>}
         {d.kind==='text-to-image'&&<small className="tw-approval-noinput">文生图：不上传任何图片，只发送提示词。</small>}
-        <pre>{JSON.stringify(d.params,null,2)}</pre><small>{d.kind==='model-convert'?`格式转换到 ${d.params.format} · 新增独立收费任务，不自动触发`:d.kind==='multiview-to-model'?`多视图生3D · ${Object.keys(d.params?.views??{}).length} 个视角各自免费上传后合并为 1 个独立收费任务，不自动装配`:d.kind==='image-to-model'?(d.role==='sheet'?`整张拆件图 · 代替 ${d.covers?.length??0} 个次要部件一次建模 · 1 个独立收费任务，不自动拆分或装配`:d.role==='whole'?'整体打底（旧版计划）· 独立收费，未自动装配':`${jobRoleLabel(d)} · 独立收费任务`):priceText(d.params.model,d.params.quality)}<br/>参考积分：{est===null?'未能按公开表估算':`约 ${est}`}<br/>输入哈希：{d.inputHash||'纯文本'}<br/>审批绑定国内站、当前图片、参数与账户；后续改图需重新准备。</small></article>})}</div><label className="tw-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>我已核对上述输入与任务数量，同意数据上传及实际积分扣除。</label><div className="tw-actions"><button disabled={busy} onClick={()=>run(cancelApproval)}>取消并丢弃草稿</button><button className="tw-primary" disabled={!consent||busy||!canPay} onClick={()=>run(confirm)}>确认上传并提交 {approval.length} 个任务</button></div></div></div>}
+        {d.kind==='mesh-decimate'&&<RetopoOfficialTips compact/>}
+        {d.params?.export_orientation&&d.kind!=='model-convert'&&<small className="tw-official-inline">{ORIENTATION_GEN_TIP}</small>}
+        <pre>{JSON.stringify(d.params,null,2)}</pre><small>{d.kind==='model-convert'?`格式转换到 ${d.params.format}${d.params.export_orientation?` · 前向轴 ${d.params.export_orientation}`:''} · 新增独立收费任务，不自动触发`:d.kind==='mesh-decimate'?`重拓扑 ${d.params.model} · ${d.params.face_limit?`${d.params.face_limit} 面`:'面数官方自适应'}${d.params.quad?' · 四边面':''} · 新增独立收费任务，不自动触发，原模型不被修改`:d.kind==='multiview-to-model'?`多视图生3D · ${Object.keys(d.params?.views??{}).length} 个视角各自免费上传后合并为 1 个独立收费任务，不自动装配`:d.kind==='image-to-model'?(d.role==='sheet'?`整张拆件图 · 代替 ${d.covers?.length??0} 个次要部件一次建模 · 1 个独立收费任务，不自动拆分或装配`:d.role==='whole'?'整体打底（旧版计划）· 独立收费，未自动装配':`${jobRoleLabel(d)} · 独立收费任务`):priceText(d.params.model,d.params.quality)}<br/>参考积分：{est===null?'未能按公开表估算':`约 ${est}`}<br/>输入哈希：{d.inputHash||'纯文本'}<br/>审批绑定国内站、当前图片、参数与账户；后续改图需重新准备。</small></article>})}</div><label className="tw-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>我已核对上述输入与任务数量，同意数据上传及实际积分扣除。</label><div className="tw-actions"><button disabled={busy} onClick={()=>run(cancelApproval)}>取消并丢弃草稿</button><button className="tw-primary" disabled={!consent||busy||!canPay} onClick={()=>run(confirm)}>确认上传并提交 {approval.length} 个任务</button></div></div></div>}
     {deleteImage&&<div className="tw-modal" role="dialog" aria-modal="true" aria-label="删除参考图确认"><div className="tw-dialog"><h2>删除本机参考图？</h2><p>即将删除「{deleteImage.label}」的本地文件和资产记录，此操作不可撤回。云端任务和其他文件不会受影响。</p>{deleteImageError&&<p className="tw-danger" role="alert">{deleteImageError}</p>}<div className="tw-actions"><button disabled={busy} onClick={()=>setDeleteImage(null)}>保留图片</button><button disabled={busy} onClick={()=>run(async()=>{const id=deleteImage.id;setDeleteImageError('');try{await api(`/projects/${project.id}/assets/${id}/delete`,'POST',{confirm:true})}catch(e){setDeleteImageError(e.message);return}setDeleteImage(null);if(selected===id)setSelected('');if(wholeAsset===id)setWholeAsset('');if(sheetAsset===id)setSheetAsset('');await load(project.id);setMessage('已删除本机参考图及资产记录')})}>确认删除本机图片</button></div></div></div>}
     <ImageLightbox asset={zoomAsset} onClose={()=>setZoomAsset(null)}/>
   </div>

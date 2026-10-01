@@ -9,7 +9,7 @@ import {JobService} from '../server/service.js'
 import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const evidence=path.join(root,'..','validation','v0.3.4');fs.mkdirSync(evidence,{recursive:true})
+const evidence=path.join(root,'..','validation','v0.3.5');fs.mkdirSync(evidence,{recursive:true})
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'tripo-v0212-ui-')),calls=[]
 const client={task:async id=>{calls.push(['task',id]);throw Error('NO TASK QUERY EXPECTED')},create:async()=>{calls.push(['create']);throw Error('NO PAID SUBMIT EXPECTED')},upload:async()=>{calls.push(['upload']);throw Error('NO UPLOAD EXPECTED')}}
 const service=new JobService({directory:temp,key:'FAKE_LOCAL_V0212',enabled:true,client})
@@ -18,7 +18,7 @@ const imageA=service.store.addAsset(p.id,png,{label:'立绘A'}),imageB=service.s
 service.store.updateProject(p.id,{revision:0,draft:{selectedAsset:imageA.id}})
 const netJob=service.prepare(p.id,{kind:'image-to-model',role:'whole',label:'整体网络失败',params:{input_asset:imageA.id,model:'v3.1-20260211',face_limit:50000,texture:true,pbr:true}});Object.assign(service.store.job(p.id,netJob.id),{status:'failed',errorCode:'UPLOAD_NETWORK_ERROR',errorPhase:'before_create',errorDetail:'连接被重置',error:'参考图上传失败（连接被重置），已自动重试 3 次；尚未发起收费生成，可直接重试'});service.store.save()
 const handler=createHandler({service}),router=hostRouter(handler)
-const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.4.js',['lib/client-v0.3.4.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
+const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.5.js',['lib/client-v0.3.5.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
 const server=http.createServer((req,res)=>{const route=router.match(req.url);if(route)return route.handler(req,res);const file=allowed.get(new URL(req.url,'http://localhost').pathname);if(!file){res.statusCode=404;return res.end()}res.setHeader('content-type',file[1]);res.end(fs.readFileSync(path.join(root,file[0])))})
 await new Promise(r=>server.listen(0,'127.0.0.1',r))
 const base=`http://127.0.0.1:${server.address().port}`,passed=[],failures=[],errors=[],external=[]
@@ -39,7 +39,7 @@ try {
   page.on('pageerror',e=>errors.push(e.message))
   await page.route('**/*',route=>{const u=route.request().url();if(/^https?:/.test(u)&&!u.startsWith(base+'/')){external.push(u);return route.abort()}return route.continue()})
   await page.goto(base+'/scripts/preview.html');await expect(page.getByRole('heading',{name:'资产库'})).toBeVisible()
-  await expect(page.locator('.tw-header')).toContainText('0.3.4')
+  await expect(page.locator('.tw-header')).toContainText('0.3.5')
 
   // REQ-038 item 1: picture click selects; only delete remains as a text command; hover-only zoom.
   const tileB=page.locator('.tw-image-grid .tw-image-tile').filter({hasText:'立绘B'})

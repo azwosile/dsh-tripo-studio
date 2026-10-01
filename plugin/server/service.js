@@ -9,11 +9,14 @@ function assertCurrentSite(job) {
   if (!isCurrentSiteJob(job)) fail('此为国际站或其他站点的历史任务，国内站不会提交、查询或重试下载；请到原站控制台处理。已保存的本地资产仍可使用。', 409, 'SITE_CHANGED')
 }
 const accountFingerprint = key => hash(JSON.stringify({site: TRIPO_SITE, key}))
-const CLOUD_TYPES = Object.freeze({text_to_image:'text-to-image', image_to_image:'image-to-image', image_to_model:'image-to-model', multiview_to_model:'multiview-to-model', convert:'model-convert'})
+const CLOUD_TYPES = Object.freeze({text_to_image:'text-to-image', image_to_image:'image-to-image', image_to_model:'image-to-model', multiview_to_model:'multiview-to-model', convert:'model-convert', mesh_decimate:'mesh-decimate', decimate:'mesh-decimate', smart_lowpoly:'mesh-decimate', highpoly_to_lowpoly:'mesh-decimate'})
 const cloudType = kind => kind === 'model-convert' ? 'convert' : kind.replaceAll('-','_')
+// 0.3.5 REQ-076: the decimate docs do not name the task `type` string, so a retopology job accepts any
+// decimate / low-poly / retopo type (never an image type) instead of failing a paid, successful task.
+const DECIMATE_TYPE = /decimat|low_?poly|retopo|mesh/i
 // 0.3.4 REQ-073: the official result example for multiview reuses a generic "*_to_model" type string, so a
 // multiview job accepts any multiview/"_to_model" type; every other kind keeps the exact 0.3.3 check.
-const typeMatches = (kind, type) => kind === 'multiview-to-model' ? typeof type === 'string' && (/multiview/i.test(type) || /_to_model$/i.test(type)) : type === cloudType(kind)
+const typeMatches = (kind, type) => kind === 'mesh-decimate' ? typeof type === 'string' && DECIMATE_TYPE.test(type) : kind === 'multiview-to-model' ? typeof type === 'string' && (/multiview/i.test(type) || /_to_model$/i.test(type)) : type === cloudType(kind)
 const CONVERT_INPUT_KINDS = ['image-to-model', 'multiview-to-model']
 import {CredentialStore, validateKey} from './credentials.js'
 import {normalizeJob, IMAGE_MODELS, IMAGE_SIZES, MODEL_VERSIONS, MULTIVIEW_VIEWS, MULTIVIEW_LABELS, jobInputAssets} from '../shared/contracts.js'
@@ -86,8 +89,9 @@ export class JobService {
     if (normalized.input_job) {
       const j = this.store.job(projectId, normalized.input_job)
       assertCurrentSite(j)
-      const allowed = kind === 'model-convert' ? CONVERT_INPUT_KINDS : ['text-to-image', 'image-to-image']
-      if (j.status !== 'success' || !allowed.includes(j.kind) || !validTaskId(j.taskId)) fail(kind === 'model-convert' ? '转换输入必须是成功的同账户3D任务' : '引用任务必须是成功的图像任务')
+      const modelInput = kind === 'model-convert' || kind === 'mesh-decimate'
+      const allowed = modelInput ? CONVERT_INPUT_KINDS : ['text-to-image', 'image-to-image']
+      if (j.status !== 'success' || !allowed.includes(j.kind) || !validTaskId(j.taskId)) fail(kind === 'mesh-decimate' ? '重拓扑输入必须是成功的同账户3D生成任务（图生3D / 多视图生3D）' : modelInput ? '转换输入必须是成功的同账户3D任务' : '引用任务必须是成功的图像任务')
       if (j.accountHash !== accountFingerprint(this.key)) fail('引用任务使用了其他凭据；请使用已保存的本地图片重新上传', 409, 'ACCOUNT_CHANGED')
       inputHash = j.taskId
     }
@@ -134,7 +138,7 @@ export class JobService {
       if (params.input_job) {
         const inputJob = this.store.job(projectId, params.input_job)
         assertCurrentSite(inputJob)
-        const allowed = job.kind === 'model-convert' ? CONVERT_INPUT_KINDS : ['text-to-image', 'image-to-image']
+        const allowed = job.kind === 'model-convert' || job.kind === 'mesh-decimate' ? CONVERT_INPUT_KINDS : ['text-to-image', 'image-to-image']
         if (inputJob.accountHash !== accountFingerprint(this.key) || inputJob.status !== 'success' || !allowed.includes(inputJob.kind) || inputJob.taskId !== job.inputHash) fail('引用任务已改变，请重新准备', 409, 'INPUT_CHANGED')
         params.input = inputJob.taskId; delete params.input_job
       }
@@ -328,7 +332,7 @@ export class JobService {
         job.output = fresh.output ?? job.output
         this.store.save()
       }
-      const kind = ['image-to-model','multiview-to-model','model-convert'].includes(job.kind) ? 'model' : 'image'
+      const kind = ['image-to-model','multiview-to-model','model-convert','mesh-decimate'].includes(job.kind) ? 'model' : 'image'
       const existing = Object.values(this.store.state.assets).find(a=>a.projectId === projectId && a.sourceJobId === job.id && a.kind === kind)
       if (existing) {job.assetIds=[existing.id];job.downloadStatus='downloaded';job.downloadError=null;this.store.save();return publicJob(job)}
       const url = job.output?.[kind === 'model' ? 'model_url' : 'generated_image_url']

@@ -36,7 +36,7 @@ export function buildRelations(images, jobs, assets) {
     job: j,
     covered: covering(j, id),
     models: assets.filter(a => a.kind === 'model' && (j.assetIds?.includes(a.id) || a.sourceJobId === j.id)),
-    converts: visible.filter(c => c.kind === 'model-convert' && c.params?.input_job === j.id).map(c => ({job: c, models: assets.filter(a => a.kind === 'model' && (c.assetIds?.includes(a.id) || a.sourceJobId === c.id))}))
+    converts: visible.filter(c => (c.kind === 'model-convert' || c.kind === 'mesh-decimate') && c.params?.input_job === j.id).map(c => ({job: c, models: assets.filter(a => a.kind === 'model' && (c.assetIds?.includes(a.id) || a.sourceJobId === c.id))}))
   }))
   const roots = images.filter(a => rootOf(a.id) === a.id)
   return roots.map(root => ({root, parts: descendants(root.id), modelJobs}))

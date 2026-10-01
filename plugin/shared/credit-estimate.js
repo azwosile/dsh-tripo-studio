@@ -27,6 +27,8 @@ export function estimateJobCredits(job) {
   // 0.3.4 REQ-073: official pricing lists 多视图转 3D at the same H-series rates as 图片转 3D (20/30 + add-ons).
   if (job?.kind === 'image-to-model' || job?.kind === 'multiview-to-model') return modelPriceReference(p.model, p.geometry_quality, {texture: p.texture, textureQuality: p.texture_quality, quad: p.quad, smart: p.smart_low_poly})
   if (job?.kind === 'model-convert') return p.quad ? 10 : 5
+  // 0.3.5 REQ-076: official /mesh/decimate pricing — v2.0 智能重拓扑 30, v1.0 基础减面 10.
+  if (job?.kind === 'mesh-decimate') return p.model === 'v1.0' ? 10 : p.model === 'v2.0' || p.model === undefined ? 30 : null
   return null
 }
 export function estimateBatch(jobs = []) {

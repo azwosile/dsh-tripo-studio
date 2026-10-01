@@ -34,7 +34,7 @@ def validate_name(name: str) -> None:
         raise ValueError(f'Local configuration prohibited: {name}')
     if (p.suffix.lower() in FORBIDDEN_EXTS or re.search(r'\.blend\d*$', low)) and name != FIXTURE:
         raise ValueError(f'Model/image/archive/secret prohibited: {name}')
-    if name.startswith('plugin/lib/') and name != 'plugin/lib/client-v0.3.4.js':
+    if name.startswith('plugin/lib/') and name != 'plugin/lib/client-v0.3.5.js':
         raise ValueError(f'Historical build prohibited: {name}')
 
 def validate_content(name: str, data: bytes) -> None:
