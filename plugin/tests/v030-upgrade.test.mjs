@@ -26,15 +26,15 @@ function legacyState(dir) {
   return {p, a, raw: fs.readFileSync(path.join(dir, 'state.json'))}
 }
 
-test('0.3.3 opens 0.2.12 data without loss and keeps a verbatim backup first', t => {
+test('0.3.4 opens 0.2.12 data without loss and keeps a verbatim backup first', t => {
   const dir = temp(t), {p, a, raw} = legacyState(dir), fileBefore = fs.readFileSync(path.join(dir, 'files', a.file))
   const s = new Store(dir)
-  assert.equal(APP_VERSION, '0.3.3')
-  assert.equal(s.state.appVersion, '0.3.3')
-  assert.deepEqual(s.upgrade && {from: s.upgrade.from, to: s.upgrade.to}, {from: 'legacy', to: '0.3.3'})
+  assert.equal(APP_VERSION, '0.3.4')
+  assert.equal(s.state.appVersion, '0.3.4')
+  assert.deepEqual(s.upgrade && {from: s.upgrade.from, to: s.upgrade.to}, {from: 'legacy', to: '0.3.4'})
   const list = backups(dir)
   assert.equal(list.length, 1)
-  assert.match(list[0], /^state-legacy-to-0\.3\.3-.+\.json$/)
+  assert.match(list[0], /^state-legacy-to-0\.3\.4-.+\.json$/)
   assert.ok(fs.readFileSync(path.join(dir, 'backups', list[0])).equals(raw), 'backup must be byte-identical to the pre-upgrade index')
   assert.equal(s.state.projects[p.id].name, '旧版项目')
   assert.equal(s.state.projects[p.id].draft.prompt, '旧提示词')
@@ -42,7 +42,7 @@ test('0.3.3 opens 0.2.12 data without loss and keeps a verbatim backup first', t
   assert.equal(Object.keys(s.state.jobs).length, 1)
   assert.deepEqual(s.state.futureField, {keep: true})
   assert.ok(fs.readFileSync(path.join(dir, 'files', a.file)).equals(fileBefore), 'asset files are never rewritten')
-  assert.equal(s.state.upgradeHistory.at(-1).to, '0.3.3')
+  assert.equal(s.state.upgradeHistory.at(-1).to, '0.3.4')
 })
 
 test('re-opening the same version makes no further backup; older app versions are recorded by name', t => {
@@ -50,8 +50,8 @@ test('re-opening the same version makes no further backup; older app versions ar
   legacyState(dir)
   new Store(dir); new Store(dir)
   assert.equal(backups(dir).length, 1)
-  const s = new Store(dir, {appVersion: '0.3.4'})
-  assert.equal(s.upgrade.from, '0.3.3')
+  const s = new Store(dir, {appVersion: '0.3.5'})
+  assert.equal(s.upgrade.from, '0.3.4')
   assert.equal(backups(dir).length, 2)
 })
 
@@ -77,7 +77,7 @@ test('backup pruning only removes its own oldest copies', t => {
 test('a fresh data folder is stamped with the version and has nothing to back up', t => {
   const dir = temp(t), s = new Store(dir)
   s.newProject('新项目')
-  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')).appVersion, '0.3.3')
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'state.json'), 'utf8')).appVersion, '0.3.4')
   assert.equal(s.upgrade, null)
   assert.deepEqual(backups(dir), [])
 })
@@ -90,13 +90,13 @@ test('unsupported index formats are still refused without touching the file', t 
   assert.deepEqual(backups(dir), [])
 })
 
-test('status reports 0.3.3 and the one-time upgrade notice without secrets', t => {
+test('status reports 0.3.4 and the one-time upgrade notice without secrets', t => {
   const dir = temp(t)
   legacyState(dir)
   const service = new JobService({directory: dir, credentialStore: {load: () => null, canPersist: false}})
   const status = service.status()
-  assert.equal(status.version, '0.3.3')
-  assert.equal(status.upgrade.to, '0.3.3')
+  assert.equal(status.version, '0.3.4')
+  assert.equal(status.upgrade.to, '0.3.4')
   assert.ok(!status.upgrade.backup.includes(path.sep))
   assert.equal(status.keyConfigured, false)
 })

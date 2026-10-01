@@ -3,9 +3,11 @@ import path from 'node:path'
 import {execFileSync} from 'node:child_process'
 const PACKAGE = 'dsh-tripo-studio'
 const normalizePath = value => path.toNamespacedPath(path.resolve(value)).toLowerCase()
+import {hostTarget} from '../shared/host-paths.js'
 const apply = process.argv.includes('--apply') && !process.argv.includes('--dry-run')
-if (!process.env.APPDATA) throw new Error('APPDATA 未设置')
-const harness = path.join(process.env.APPDATA, 'dsh-desktop', 'harness'), profile = path.join(harness, 'profiles', 'web')
+const targetName = process.argv.find(a => a.startsWith('--target='))?.slice(9) || 'community'
+if (targetName === 'official') { const {runOfficial} = await import('./install-official.mjs'); await runOfficial({uninstall: true}); process.exit(0) }
+const {harness, profile} = hostTarget(targetName)
 const file = path.join(profile, 'package.json'), link = path.join(profile, 'node_modules', PACKAGE)
 const installed = path.join(harness, 'plugins', PACKAGE), raw = fs.readFileSync(file, 'utf8'), pkg = JSON.parse(raw)
 if (pkg.dependencies?.[PACKAGE] && pkg.dependencies[PACKAGE] !== `file:../../plugins/${PACKAGE}`) throw new Error('依赖来源已经改变，停止卸载以免移除别人的配置')

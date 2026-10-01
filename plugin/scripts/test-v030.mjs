@@ -10,7 +10,7 @@ import {Store} from '../server/store.js'
 import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const evidence=path.join(root,'..','validation','v0.3.3');fs.mkdirSync(evidence,{recursive:true})
+const evidence=path.join(root,'..','validation','v0.3.4');fs.mkdirSync(evidence,{recursive:true})
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'tripo-v030-ui-')),calls=[]
 const png=fs.readFileSync(path.join(root,'tests/fixtures/reference.png'))
 // 1) Build a 0.2.12-era data folder, then let 0.3.0 open it (upgrade path).
@@ -30,7 +30,7 @@ const mJob=service.prepare(p.id,{kind:'image-to-model',role:'part',label:'头发
 const model=s.addAsset(p.id,glb,{label:'头发模型',kind:'model',format:'glb',sourceJobId:mJob.id});Object.assign(s.job(p.id,mJob.id),{status:'success',taskId:'task_fake_v030',downloadStatus:'downloaded',assetIds:[model.id],tracking:false})
 s.save()
 const handler=createHandler({service}),router=hostRouter(handler)
-const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.3.js',['lib/client-v0.3.3.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
+const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.4.js',['lib/client-v0.3.4.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
 const server=http.createServer((req,res)=>{const route=router.match(req.url);if(route)return route.handler(req,res);const file=allowed.get(new URL(req.url,'http://localhost').pathname);if(!file){res.statusCode=404;return res.end()}res.setHeader('content-type',file[1]);res.end(fs.readFileSync(path.join(root,file[0])))})
 await new Promise(r=>server.listen(0,'127.0.0.1',r))
 const base=`http://127.0.0.1:${server.address().port}`,passed=[],failures=[],errors=[],external=[]
@@ -38,7 +38,7 @@ let browser
 const check=(name,ok)=>{(ok?passed:failures).push(name);console.log(`${ok?'PASS':'FAIL'} ${name}`)}
 try {
   const backups=fs.readdirSync(path.join(temp,'backups'))
-  check('upgrade keeps a byte-identical 0.2.12 index backup before writing',backups.length===1&&fs.readFileSync(path.join(temp,'backups',backups[0])).equals(rawBefore)&&s.state.appVersion==='0.3.3')
+  check('upgrade keeps a byte-identical 0.2.12 index backup before writing',backups.length===1&&fs.readFileSync(path.join(temp,'backups',backups[0])).equals(rawBefore)&&s.state.appVersion==='0.3.4')
   check('upgrade keeps every project, asset and file',Object.keys(s.state.projects).length===1&&[A,B,crop].every(a=>s.state.assets[a.id]&&fs.existsSync(path.join(temp,'files',a.file))))
   browser=await chromium.launch({...(process.env.TRIPO_TEST_BROWSER?{executablePath:process.env.TRIPO_TEST_BROWSER}:{}),args:['--no-sandbox','--enable-unsafe-swiftshader']})
   const page=await browser.newPage({viewport:{width:1440,height:1000}})
@@ -46,7 +46,7 @@ try {
   page.on('pageerror',e=>errors.push(e.message))
   await page.route('**/*',route=>{const u=route.request().url();if(/^https?:/.test(u)&&!u.startsWith(base+'/')){external.push(u);return route.abort()}return route.continue()})
   await page.goto(base+'/scripts/preview.html');await expect(page.getByRole('heading',{name:'资产库'})).toBeVisible()
-  const notice=page.locator('.tw-upgrade');await expect(notice).toContainText('0.3.3');await expect(notice).toContainText(backups[0])
+  const notice=page.locator('.tw-upgrade');await expect(notice).toContainText('0.3.4');await expect(notice).toContainText(backups[0])
   check('one-time upgrade notice names the backup file',true)
   await notice.getByRole('button',{name:'知道了'}).click();await expect(notice).toHaveCount(0)
   await page.reload();await expect(page.getByRole('heading',{name:'资产库'})).toBeVisible();check('dismissed upgrade notice stays dismissed after reload',await notice.count()===0)

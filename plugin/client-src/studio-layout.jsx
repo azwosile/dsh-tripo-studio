@@ -4,7 +4,7 @@ import {TaskList,STATUS} from './task-list.jsx'
 import {buildRelations,jobCounts,parentOf} from './relations.js'
 import {ModelThumb} from './model-thumb.jsx'
 import {RoleSwitch} from './model-plan.jsx'
-import {MODEL_ROLES,roleOf,jobRoleLabel,planModelTasks} from './model-roles.js'
+import {MODEL_ROLES,roleOf,jobRoleLabel,planModelTasks,toneOf} from './model-roles.js'
 export {buildRelations}
 
 // 0.3.0 studio layout (REQ-048～051): library | canvas | inspector, with a task dock.
@@ -115,12 +115,12 @@ export function Relations({images, jobs, assets, selected, busy, sheetAsset, che
   if (!images.length) return <section className="tw-panel tw-canvas-panel"><div className="tw-section-title"><span>MAP / SOURCE → PART</span><h2>来源 → 部件</h2></div><p className="tw-placeholder">还没有图片。导入或生成立绘后，裁剪 / AI 提取出的部件会按来源归组显示在这里。</p></section>
   return <section className="tw-panel tw-canvas-panel tw-relations" aria-label="来源与部件对应关系">
     <div className="tw-section-title"><span>MAP / SOURCE → PART → 3D</span><h2>来源 → 部件</h2></div>
-    <p className="tw-rel-summary">{groups.length} 张来源图 · {partCount} 个部件。颜色即建模方式：<b className="tw-role-ink-green">主要（绿）单独建模</b> · <b className="tw-role-ink-blue">次要（蓝）随整张拆件图建模</b> · <b className="tw-role-ink-red">基准（红）单独建模作比例参照</b>。勾选后到「统一建模」页一次审阅。</p>
+    <p className="tw-rel-summary">{groups.length} 张来源图 · {partCount} 个部件。颜色即建模方式：<b className="tw-role-ink-green">主要（绿）单独建模</b> · <b className="tw-role-ink-blue">次要（蓝）随整张拆件图建模</b> · <b className="tw-role-ink-red">基准（红）单独建模作比例参照</b> · <b className="tw-role-ink-purple">整张拆件图（紫框）</b>。勾选后到「统一建模」页一次审阅。</p>
     <div className="tw-rel-head" aria-hidden="true"><span>来源图 / 整张拆件图</span><span>部件（裁剪 / AI 提取）</span><span>3D 模型 / 任务</span></div>
     {groups.map(({root, parts, modelJobs}) => { const isSheet = plan.sheetId === root.id; const ids = new Set([root.id, ...parts.map(p => p.asset.id)]); const sheetInside = plan.sheetId && ids.has(plan.sheetId) && !isSheet; return <article className={`tw-rel-group ${isSheet ? 'is-sheet' : ''}`} key={root.id} data-root-id={root.id}>
       <div className="tw-rel-source">
         <ImageTile compact asset={root} busy={busy} selected={selected === root.id} pickLabel="在关系图中选择" zoomLabel="放大来源图" badge={isSheet ? '整张拆件图' : `${parts.length} 个部件`} onSelect={onSelect} onZoom={onZoom}/>
-        <div className="tw-rel-actions"><button type="button" disabled={busy} onClick={() => onCrop(root)} aria-label={`裁剪：${root.label}`}>裁剪 →</button><button type="button" className={isSheet ? 'tw-role-ink-blue' : ''} disabled={busy || isSheet} onClick={() => onSheet(root)} aria-label={`设为整张拆件图：${root.label}`}>{isSheet ? '✓ 整张拆件图' : '设为整张拆件图'}</button></div>
+        <div className="tw-rel-actions"><button type="button" disabled={busy} onClick={() => onCrop(root)} aria-label={`裁剪：${root.label}`}>裁剪 →</button><button type="button" className={isSheet ? 'tw-role-ink-purple' : ''} disabled={busy || isSheet} onClick={() => onSheet(root)} aria-label={`设为整张拆件图：${root.label}`}>{isSheet ? '✓ 整张拆件图' : '设为整张拆件图'}</button></div>
         {isSheet && <small className="tw-rel-sheet-note">勾选的次要（蓝）部件：{plan.secondary.length} 个 → 共用 1 个图生3D任务</small>}
       </div>
       <div className="tw-rel-parts">
@@ -133,12 +133,12 @@ export function Relations({images, jobs, assets, selected, busy, sheetAsset, che
           <div className="tw-rel-models">{modelJobs(root.id).map(e => <ModelStatus key={e.job.id} entry={e} busy={busy} onPreview={onPreview} canPreviewModel={canPreviewModel}/>)}</div>
         </div>}
         {parts.length === 0 && <p className="tw-placeholder">还没有从这张图裁出的部件。点「裁剪 →」开始。</p>}
-        {parts.map(({asset: a, depth, via}) => { const mj = modelJobs(a.id), role = roleOf(a), on = checked.includes(a.id), tone = MODEL_ROLES[role].tone
+        {parts.map(({asset: a, depth, via}) => { const mj = modelJobs(a.id), role = roleOf(a), on = checked.includes(a.id), tone = toneOf(a, plan.sheetId)
           const pending = !on ? '未勾选' : role === 'normal' ? (a.id === plan.sheetId ? '已设为整张拆件图' : plan.sheet ? `已勾选 · 随「${plan.sheet.label}」建模` : '已勾选 · 需先设整张拆件图') : '已勾选 · 单独建模 · 待审阅'
           return <div className={`tw-rel-row tw-role-row tw-role-${tone}`} key={a.id} data-asset-id={a.id} data-role={role} style={{'--depth': depth - 1}}>
           <div className={`tw-rel-part ${selected === a.id ? 'on' : ''}`}>
             <button type="button" className="tw-rel-thumb" aria-label={`放大部件：${a.label}`} onClick={() => onZoom(a)}><img src={a.url} alt={a.label}/></button>
-            <div className="tw-rel-meta"><strong>{a.label}</strong><small>↳ {via === 'crop' ? '本地裁剪' : 'AI 提取'} · <span className={`tw-role-ink-${tone}`}>{MODEL_ROLES[role].name} · {MODEL_ROLES[role].how}</span>{depth > 1 ? ` · 第 ${depth} 级` : ''}</small>
+            <div className="tw-rel-meta"><strong>{a.label}</strong><small>↳ {via === 'crop' ? '本地裁剪' : 'AI 提取'} · <span className={`tw-role-ink-${MODEL_ROLES[role].tone}`}>{MODEL_ROLES[role].name} · {MODEL_ROLES[role].how}</span>{a.id === plan.sheetId ? <> · <span className="tw-role-ink-purple">整张拆件图</span></> : null}{depth > 1 ? ` · 第 ${depth} 级` : ''}</small>
               {onPriority && <RoleSwitch compact asset={a} busy={busy} onPriority={onPriority}/>}
               <span className="tw-rel-line"><label><input type="checkbox" aria-label={`加入建模：${a.label}`} checked={on} onChange={e => onCheck(a.id, e.target.checked)}/>加入建模</label><button type="button" disabled={busy} onClick={() => onCrop(a)} aria-label={`在裁剪台打开：${a.label}`}>裁剪</button><button type="button" disabled={busy || a.id === plan.sheetId} onClick={() => onSheet(a)} aria-label={`设为整张拆件图：${a.label}`}>{a.id === plan.sheetId ? '✓ 拆件图' : '设为拆件图'}</button></span></div>
           </div>

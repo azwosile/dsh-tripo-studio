@@ -4,7 +4,7 @@
 
 ## 支持范围
 
-安装/卸载脚本只面向 Windows DSH Desktop 的现有目录布局，需要宿主已完成初次初始化。Node.js 包声明 `>=20`，建议使用受维护的 22/24。开发时可在 Linux 运行大部分模拟测试，但这不代表 Linux/macOS 的桌面安装已受支持。
+安装/卸载脚本面向 Windows 上的 DSH Desktop（社区版，默认）与 DeepSeek Harness 官方桌面端（`--target=official`），需要宿主已完成初次初始化。Node.js 包声明 `>=20`，建议使用受维护的 22/24。开发时可在 Linux 运行大部分模拟测试，但这不代表 Linux/macOS 的桌面安装已受支持。
 
 当前版没有声明兼容所有 DSH 版本；宿主 web profile、Cordis 或客户端槽位协议变更时需要重新验证。预检报结构、解析或完整性错误时应停止，不要为安装关闭宿主完整性检查。
 
@@ -23,9 +23,20 @@
 | 插件文件 | `%APPDATA%\dsh-desktop\harness\plugins\dsh-tripo-studio` |
 | web profile | `%APPDATA%\dsh-desktop\harness\profiles\web` |
 | 安装备份 | `%APPDATA%\dsh-desktop\harness\plugins\tripo-studio-backups` |
-| 默认数据根目录 | `%APPDATA%\dsh-desktop\tripo-studio` |
+| 默认数据根目录 | 已存在时沿用 `%APPDATA%\dsh-desktop\tripo-studio`；新装为 `%USERPROFILE%\.dsh\tripo-studio`（或 `$DSH_HOME\tripo-studio`） |
 
 安装器只更新本插件相关的依赖、bundle 与 junction，并备份旧插件/profile和存在的小型数据索引；不复制模型/贴图/密钥，不移动用户项目，不运行全局 pnpm resolver。首次打开新数据版本时，存储模块会先备份旧 `state.json`。索引备份不是整个资产库的完整备份，请另行备份自己的数据。
+
+## 官方桌面端（DeepSeek Harness）
+
+已在官方 0.2.0-rc.2 自带运行时上实测服务端路由与客户端注册。官方桌面端的插件归属 `%USERPROFILE%\.dsh\profiles\desktop`，官方支持的外部安装方式是自带 CLI：`dsh plugin --profile desktop add <package>`。本仓库安装器包装了这条路径：
+
+1. 先启动一次官方桌面端以初始化 profile，然后从**系统托盘**完全退出（关窗只是隐藏）。
+2. 在 `plugin` 目录执行预检：`node .\scripts\install-local.mjs --target=official --dsh="<安装目录>\resources\runtime\cli\bin\dsh.cmd" --dry-run`。安装目录是默认的 `%LOCALAPPDATA%\Programs\DeepSeek Harness` 时可省略 `--dsh`，也可设置 `DSH_OFFICIAL_CLI`。
+3. 确认后把 `--dry-run` 换成 `--apply`。插件文件复制到 `%USERPROFILE%\.dsh\local-plugins\dsh-tripo-studio`，备份在同目录的 `tripo-studio-backups`。
+4. 卸载：`node .\scripts\uninstall-local.mjs --target=official --apply`（保留插件文件与数据）。
+
+数据目录与社区版共享（见上表与 `shared/host-paths.js`），因此迁移后项目、模型和已保存的 Key 仍然可用。**不要让两个桌面端同时运行本插件**，以免同时写入 `state.json`。标题栏玻璃效果只在社区版显示。
 
 ## 连接与收费
 

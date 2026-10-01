@@ -12,7 +12,7 @@ export function ModelTips({model}) {
   <h4>质量 / 计价</h4><p>{info?.quality.length?`quality：${info.quality.join(' / ')}；不支持auto。`:'该模型不支持quality，不会发送此字段。'} {info?.background?'支持auto/opaque/transparent背景。':'不发送background。'} 输出PNG。</p>
   {['low',...(info?.quality.includes('high')?['high']:[]),...(info?.quality.includes('xhigh')?['xhigh','max']:[])].map(q=><p key={q}>{q==='low'?'基础价（low/medium如适用）':q}：{priceText(model,q)}</p>)}
   <p>1积分=$0.01 USD。核对日{MODEL_DOC_DATE}；只提供官方价表参考，不承诺固定实际费用，不自动选择收费档。{info?.retireOn&&`官方下线日期 ${info.retireOn}，届时停止新建任务。`}</p>
-  <h4>请求与凭据</h4><p>国内站 <code>{TRIPO_API_BASE}</code>；文生图 POST /generation/text-to-image，拆件/编辑 POST /generation/image-to-image，建模 POST /generation/image-to-model。</p>
+  <h4>请求与凭据</h4><p>国内站 <code>{TRIPO_API_BASE}</code>；文生图 POST /generation/text-to-image，拆件/编辑 POST /generation/image-to-image，建模 POST /generation/image-to-model，多视图建模 POST /generation/multiview-to-model（view-key 格式，正面必填、至少 2 张）。</p>
   <p>后端Authorization: Bearer [密钥]；JSON Content-Type: application/json；上传/files使用FormData，不向CDN转发Key。不自动回退国际站。</p>
   <p>Seedream v4仅文生图；本地模型、Anima、NovelAI及LLM修改模块尚未接入。</p>
   <div className="tw-doc-links"><a href="https://developers.tripo3d.com/zh/docs/generation-text-to-image" target="_blank" rel="noopener noreferrer">官方参数文档 ↗</a><a href={PRICING_URL} target="_blank" rel="noopener noreferrer">官方计价 ↗</a></div>

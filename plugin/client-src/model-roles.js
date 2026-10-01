@@ -11,12 +11,21 @@ export const MODEL_ROLES = Object.freeze({
   base: {name: '基准', tone: 'red', color: '红色', how: '单独建模 · 比例参照', short: '单独 1 个任务'},
 })
 // 0.3.3 REQ-069: say in words what each paid kind does, so 文生图 and 图生图 can never be confused.
-export const KIND_LABEL = Object.freeze({'text-to-image': '文生图 · 只用提示词', 'image-to-image': '图生图 · 以参考图为输入', 'image-to-model': '图生3D', 'model-convert': '格式转换'})
+// 0.3.4 REQ-075: the split sheet (整张拆件图) has its own colour — purple — independent of the image's own
+// 主要/次要/基准 tag, so a sheet that is also tagged 基准 no longer shows a red (or blue) frame.
+export const SHEET_TONE = Object.freeze({name: '拆件图', tone: 'purple', color: '紫色', how: '整张送入 Tripo，次要部件共用此任务'})
+export const toneOf = (asset, sheetId) => asset?.id && asset.id === sheetId ? SHEET_TONE.tone : MODEL_ROLES[roleOf(asset)].tone
+export const KIND_LABEL = Object.freeze({'text-to-image': '文生图 · 只用提示词', 'image-to-image': '图生图 · 以参考图为输入', 'image-to-model': '图生3D', 'multiview-to-model': '多视图生3D', 'model-convert': '格式转换'})
+// 0.3.4 REQ-074: a failed image task whose upstream message reads like a safety/moderation rejection gets a
+// concrete hint instead of a bare error (the 0.3.3 sheet prompt failed this way).
+export const looksModerated = message => /safety|moderat|policy|sensitive|nsfw|inappropriate|content.?(filter|review)|违规|敏感|审核|安全(策略|系统|检查)|不合规/i.test(String(message || ''))
+export const MODERATION_HINT = '可能被图像模型的内容安全审核拦截：请检查提示词/输入图里是否有人体、内衣、贴身、裸露等描述（即使是“不要……”也会触发）。0.3.4 起预设拆件提示词已去掉这类词；整张拆件图只拆服装与配件，身体基准请用「单个部件 · 身体基准」单独提取。'
 export const roleOf = asset => MODEL_ROLES[asset?.priority] ? asset.priority : 'normal'
 export const roleName = priority => MODEL_ROLES[priority]?.name ?? '次要'
 
 /** Human label for a 3D job in lists and relation rows. */
 export function jobRoleLabel(job) {
+  if (job?.kind === 'multiview-to-model') return `多视图 · ${Object.keys(job.params?.views ?? {}).length} 视角`
   if (job?.role === 'sheet') return `整张拆件图 · 次要×${job.covers?.length ?? 0}`
   if (job?.role === 'whole') return '整体（旧版）'
   return job?.priority === 'base' ? '基准部件' : job?.priority === 'high' ? '主要部件' : '部件'

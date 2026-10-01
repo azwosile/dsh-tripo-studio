@@ -6,14 +6,20 @@ import {fileURLToPath, pathToFileURL} from 'node:url'
 import {createRequire} from 'node:module'
 import {execFileSync} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
+import {hostTarget, resolveDataDirectory} from '../shared/host-paths.js'
+
+// --target=official installs into the official DeepSeek Harness desktop via its bundled CLI.
+// Default (--target=community) keeps the historical DSH Desktop (dataelement) flow unchanged.
+const targetName = process.argv.find(a => a.startsWith('--target='))?.slice(9) || 'community'
+if (targetName === 'official') { const {runOfficial} = await import('./install-official.mjs'); await runOfficial(); process.exit(0) }
 
 const PACKAGE = 'dsh-tripo-studio'
 const normalizePath = value => path.toNamespacedPath(path.resolve(value)).toLowerCase()
 const source = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const apply = process.argv.includes('--apply') && !process.argv.includes('--dry-run')
-if (!process.env.APPDATA) throw new Error('APPDATA 未设置；此安装器仅面向 Windows DSH Desktop')
-const harness = path.join(process.env.APPDATA, 'dsh-desktop', 'harness')
-const profile = path.join(harness, 'profiles', 'web'), profileFile = path.join(profile, 'package.json')
+const target = hostTarget(targetName)
+const harness = target.harness
+const profile = target.profile, profileFile = path.join(profile, 'package.json')
 const installed = path.join(harness, 'plugins', PACKAGE), link = path.join(profile, 'node_modules', PACKAGE)
 const req = createRequire(path.join(profile, 'noop.js'))
 const original = fs.readFileSync(profileFile, 'utf8'), pkg = JSON.parse(original)
@@ -22,9 +28,9 @@ if (!Array.isArray(pkg.dsh?.profile?.bundles) || !pkg.dependencies) throw new Er
 const plugin = await import(pathToFileURL(path.join(source, 'index.js')))
 const {resolveConfig} = await import(pathToFileURL(req.resolve('@deepseek-ai/cordis')))
 resolveConfig(plugin, {demoMode: false})
-for (const file of ['lib/client-v0.3.3.js', 'server/routes.js', 'shared/contracts.js', 'cordis.patch.yml']) if (!fs.existsSync(path.join(source, file))) throw new Error(`发布闭包缺失：${file}`)
+for (const file of ['lib/client-v0.3.4.js', 'server/routes.js', 'shared/contracts.js', 'cordis.patch.yml']) if (!fs.existsSync(path.join(source, file))) throw new Error(`发布闭包缺失：${file}`)
 // 0.3.0 REQ-053: user data lives outside the plugin folder and is never copied over, moved or deleted.
-const dataDirectory = process.env.TRIPO_STUDIO_DATA_DIR || path.join(process.env.APPDATA, 'dsh-desktop', 'tripo-studio')
+const dataDirectory = resolveDataDirectory()
 const inside = (child, parent) => { const r = path.relative(normalizePath(parent), normalizePath(child)); return r === '' || (!r.startsWith('..') && !path.isAbsolute(r)) }
 if (inside(dataDirectory, installed) || inside(installed, dataDirectory) || inside(dataDirectory, source)) throw new Error('用户数据目录与插件目录重叠，已停止以免覆盖项目数据')
 const dataIndexes = () => {

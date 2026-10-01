@@ -5,7 +5,8 @@ import {isCurrentSiteJob} from '../shared/site.js'
 import {validTaskId} from '../shared/task-id.js'
 import {IMAGE_MODEL_INFO} from '../shared/image-models.js'
 import {ModelThumb} from './model-thumb.jsx'
-import {KIND_LABEL,jobRoleLabel} from './model-roles.js'
+import {KIND_LABEL,jobRoleLabel,looksModerated,MODERATION_HINT} from './model-roles.js'
+import {MULTIVIEW_VIEWS,MULTIVIEW_LABELS} from '../shared/contracts.js'
 export const STATUS = {awaiting_approval:'等待审批',submitting:'提交中',submission_unknown:'提交结果未知 · 禁止自动重发',queued:'排队中',running:'生成中',success:'云端成功',failed:'失败',cancelled:'云端已取消',discarded:'草稿已丢弃'}
 const previewable=a=>a.kind==='model'&&['glb','fbx','obj','stl','gltf'].includes(a.format||'glb')
 export function TaskList({jobs,assets,busy,onAction,onPreview,onImage,onZoom,onCleanup,onRename}) {
@@ -27,18 +28,19 @@ function TaskCard({job:j,jobs,assets,busy,onAction,onPreview,onImage,onZoom,onRe
   const model=j.kind==='model-convert'?`独立格式转换 → ${j.params?.format||'未知'}`:IMAGE_MODEL_INFO[j.params?.model]?.label||j.params?.model||'历史记录未保存'
   const retain=requiresRetention(j,jobs)
   // 0.3.1 REQ-058: finished 3D tasks show input image → locally rendered 3D reference image.
-  const is3d=['image-to-model','model-convert'].includes(j.kind),srcJob=j.kind==='model-convert'?jobs.find(x=>x.id===j.params?.input_job):j
-  const inputImage=is3d?assets.find(a=>a.kind==='image'&&a.id===srcJob?.params?.input_asset):null
+  const is3d=['image-to-model','multiview-to-model','model-convert'].includes(j.kind),srcJob=j.kind==='model-convert'?jobs.find(x=>x.id===j.params?.input_job):j
+  const inputImage=is3d?assets.find(a=>a.kind==='image'&&a.id===(srcJob?.params?.input_asset||srcJob?.params?.views?.front)):null
   const modelOut=outputs.find(a=>previewable(a))||outputs.find(a=>a.kind==='model')
   const removeLabel=retain?'从列表移除':`删除${({success:'成功',failed:'失败',discarded:'丢弃',cancelled:'取消',awaiting_approval:'草稿'})[j.status]||''}记录`
   return <article className="tw-job" data-job-id={j.id}>
     <header><strong>{j.label}</strong><span className={j.status==='submission_unknown'?'tw-danger':''}>{STATUS[j.status]||j.status}</span></header>
     <small className="tw-job-model">模型：{model}</small>
-    <small>{current?'国内站':'国际站 / 其他站历史'} · <b className={`tw-kind-tag kind-${j.kind}`}>{KIND_LABEL[j.kind]||j.kind}{j.kind==='image-to-model'?` · ${jobRoleLabel(j)}`:''}</b> · {j.kind} · {j.taskId||'无云端 task_id'} · {j.progress}%{j.importedAt?' · 手动查询导入':''}</small>
+    <small>{current?'国内站':'国际站 / 其他站历史'} · <b className={`tw-kind-tag kind-${j.kind}`}>{KIND_LABEL[j.kind]||j.kind}{j.kind==='image-to-model'?` · ${jobRoleLabel(j)}`:j.kind==='multiview-to-model'?` · ${MULTIVIEW_VIEWS.filter(v=>j.params?.views?.[v]).map(v=>MULTIVIEW_LABELS[v]).join('/')}`:''}</b> · {j.kind} · {j.taskId||'无云端 task_id'} · {j.progress}%{j.importedAt?' · 手动查询导入':''}</small>
     {!current&&<p className="tw-note">历史任务已隔离：不会向国内站提交、查询或重试下载。请到原站控制台处理；已下载资产可继续本地使用。</p>}
     <p>本地资产：{({not_started:'未开始',downloading:'下载中',downloaded:'已保存',download_failed:'下载失败，可重试'})[j.downloadStatus]||'未开始'} / 实际积分：{j.creditsConsumed??'未返回'}{j.creditsSource==='usage'?'（来自用量记录）':''}</p>
     {j.lastRefreshedAt&&<small>最近查询：{new Date(j.lastRefreshedAt).toLocaleString()}</small>}
     {[...new Set([j.error,j.lastQueryError,j.downloadError].filter(Boolean))].map((message,i)=><p className="tw-danger" key={i}>{message}</p>)}
+    {['failed','submission_unknown'].includes(j.status)&&looksModerated(j.error)&&<p className="tw-note tw-moderation-hint" data-hint="moderation">{MODERATION_HINT}</p>}
     {j.errorPhase&&<p className="tw-note" data-error-phase={j.errorPhase}>{j.errorPhase==='before_create'?'失败阶段：上传参考图（尚未发起收费生成，可重新准备后再次提交）':'失败阶段：提交收费任务（结果可能未知，请先按任务 ID 恢复/核对，勿直接重提）'}{j.errorDetail?` · 原因：${j.errorDetail}`:''}</p>}
     {j.kind==='image-to-image'&&(()=>{const inp=assets.find(a=>a.kind==='image'&&a.id===j.params?.input_asset);return inp?<button type="button" className="tw-job-input" aria-label={`放大图生图输入图：${inp.label}`} onClick={()=>onZoom(inp)}><img src={inp.url} alt={inp.label}/><small>图生图输入：{inp.label}</small></button>:null})()}
     {is3d&&j.status==='success'&&<div className="tw-job-ref" role="group" aria-label={`3D 参考图：${j.label}`}>

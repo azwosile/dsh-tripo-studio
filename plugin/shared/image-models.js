@@ -42,4 +42,4 @@ export function priceText(model,quality='low') {
   const actual=info.quality.includes(quality)?table:info.price
   return `官方参考（积分/张）：≤1K ${actual[0]??'—'} / 2K ${actual[1]??'—'} / 4K ${actual[2]??'—'}${model.startsWith('chat_image_2')?'；auto 按2K':''}。不代表所有尺寸都支持；自定义像素计费档以账户为准。`
 }
-export const TRIPO_ENDPOINTS=Object.freeze({'text-to-image':'/generation/text-to-image','image-to-image':'/generation/image-to-image','image-to-model':'/generation/image-to-model','model-convert':'/models/convert'})
+export const TRIPO_ENDPOINTS=Object.freeze({'text-to-image':'/generation/text-to-image','image-to-image':'/generation/image-to-image','image-to-model':'/generation/image-to-model','multiview-to-model':'/generation/multiview-to-model','model-convert':'/models/convert'})

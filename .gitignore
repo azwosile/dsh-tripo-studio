@@ -14,7 +14,7 @@ Thumbs.db
 .idea/
 /lib/
 plugin/lib/*
-!plugin/lib/client-v0.3.3.js
+!plugin/lib/client-v0.3.4.js
 /Tripo-Studio-Workbench-*.html
 /dist/
 /build/

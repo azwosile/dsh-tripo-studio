@@ -3,7 +3,7 @@ import {jobSite} from '../shared/site.js'
 import path from 'node:path'
 import {createHash, randomUUID} from 'node:crypto'
 
-export const APP_VERSION = '0.3.3'
+export const APP_VERSION = '0.3.4'
 export const hash = (value) => createHash('sha256').update(value).digest('hex')
 export const uid = () => randomUUID()
 export function fail(message, status = 400, code = 'INVALID_REQUEST') { throw Object.assign(new Error(message), {status, code}) }

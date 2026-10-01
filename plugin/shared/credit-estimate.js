@@ -24,7 +24,8 @@ export function estimateJobCredits(job) {
     const row = imagePriceRow(p.model, p.quality), tier = imageTier(p.size, p.model)
     return row && tier !== null && Number.isFinite(row[tier]) ? row[tier] : null
   }
-  if (job?.kind === 'image-to-model') return modelPriceReference(p.model, p.geometry_quality, {texture: p.texture, textureQuality: p.texture_quality, quad: p.quad, smart: p.smart_low_poly})
+  // 0.3.4 REQ-073: official pricing lists 多视图转 3D at the same H-series rates as 图片转 3D (20/30 + add-ons).
+  if (job?.kind === 'image-to-model' || job?.kind === 'multiview-to-model') return modelPriceReference(p.model, p.geometry_quality, {texture: p.texture, textureQuality: p.texture_quality, quad: p.quad, smart: p.smart_low_poly})
   if (job?.kind === 'model-convert') return p.quad ? 10 : 5
   return null
 }

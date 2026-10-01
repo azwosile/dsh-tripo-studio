@@ -1,4 +1,5 @@
 import {isCurrentSiteJob} from '../shared/site.js'
+import {jobInputAssets, MODEL_KINDS} from '../shared/contracts.js'
 
 // 0.3.0 REQ-051 / 0.3.1 REQ-059: pure, read-only derivation of source → part → 3D relations from existing records.
 // No new persisted fields: crops use asset.sourceAssetId, AI extractions use job.params.input_asset.
@@ -27,11 +28,11 @@ export function buildRelations(images, jobs, assets) {
   const descendants = (id, depth = 1, seen = new Set([id])) => (children.get(id) ?? []).flatMap(c => seen.has(c.id) ? [] : (seen.add(c.id), [{asset: c, depth, via: c.sourceAssetId === id ? 'crop' : 'ai'}, ...descendants(c.id, depth + 1, seen)]))
   const visible = jobs.filter(j => j.hidden !== true)
   // 0.3.1 REQ-059: a model built from a job output (input_job) is linked to that job's image too.
-  const usesImage = (j, id) => j.params?.input_asset === id || (j.params?.input_job && jobImageOutputs(jobsById.get(j.params.input_job), imageIds).includes(id))
+  const usesImage = (j, id) => jobInputAssets(j).includes(id) || (j.params?.input_job && jobImageOutputs(jobsById.get(j.params.input_job), imageIds).includes(id))
   // 0.3.3 REQ-072: a secondary part is modelled through the split-sheet task that lists it in job.covers.
   const covering = (j, id) => !usesImage(j, id) && Array.isArray(j.covers) && j.covers.includes(id)
   // Discarded drafts never reached Tripo; they only add noise next to real models (0.3.3 REQ-072).
-  const modelJobs = id => visible.filter(j => j.kind === 'image-to-model' && j.status !== 'discarded' && (usesImage(j, id) || covering(j, id))).map(j => ({
+  const modelJobs = id => visible.filter(j => MODEL_KINDS.includes(j.kind) && j.status !== 'discarded' && (usesImage(j, id) || covering(j, id))).map(j => ({
     job: j,
     covered: covering(j, id),
     models: assets.filter(a => a.kind === 'model' && (j.assetIds?.includes(a.id) || a.sourceJobId === j.id)),

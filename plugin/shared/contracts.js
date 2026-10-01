@@ -4,7 +4,12 @@ import {IMAGE_MODELS,IMAGE_SIZES,IMAGE_MODEL_INFO,isImageSize,modelAvailable} fr
 export {IMAGE_MODELS,IMAGE_SIZES} from './image-models.js'
 export const MODEL_VERSIONS = ['v3.1-20260211', 'v3.0-20250812', 'v2.5-20250123']
 export const MODEL_FORMATS = ['GLTF', 'FBX', 'USDZ', 'OBJ', 'STL', '3MF']
-export const KINDS = ['text-to-image', 'image-to-image', 'image-to-model', 'model-convert']
+export const KINDS = ['text-to-image', 'image-to-image', 'image-to-model', 'multiview-to-model', 'model-convert']
+// 0.3.4 REQ-073: official POST /generation/multiview-to-model (H series). View keys and canonical order
+// are the documented view-key format [front, left, back, right]; front is mandatory, at least 2 images.
+export const MULTIVIEW_VIEWS = ['front', 'left', 'back', 'right']
+export const MULTIVIEW_LABELS = Object.freeze({front: '正面', left: '左侧', back: '背面', right: '右侧'})
+export const MODEL_KINDS = ['image-to-model', 'multiview-to-model']
 // Official H-series image-to-model face caps. Quad output is FBX, not GLB.
 export function modelFaceMax(model, {quad = false, smart = false, geometry = 'standard'} = {}) {
   if (!MODEL_VERSIONS.includes(model)) return 0
@@ -30,7 +35,8 @@ export const isHairPart = name => /头发|发型|hair/i.test(String(name || ''))
 // 0.3.3 REQ-070: structured, generic templates (no character-specific traits, still user-editable in the UI).
 // Each part category gets the one instruction that most often went wrong in 0.3.2 outputs.
 const PART_RULES = [
-  ['body', /身体|素体|基准|body|base/i, '作为比例基准：穿不透明贴身内衬的完整全身，标准 A 字站姿，双臂略张开，保持原身高与头身比例；不含头发、外衣、鞋和配饰，不要裸体。'],
+  // 0.3.4 REQ-074: no nudity/underwear wording — such words (even negated) made image tasks fail moderation.
+  ['body', /身体|素体|基准|body|base/i, '作为比例基准：完整全身人台，穿着简洁的浅灰色长袖连体运动服（不透明、贴合体型），标准 A 字站姿，双臂略张开，保持原身高与头身比例；不含头发、外衣、鞋和配饰。'],
   ['head', /头部|脸|面部|head|face/i, '只保留头部、脸和耳朵，不含头发（头发另行建模）；五官清晰，颈部在下颌下方平整截断。'],
   ['shoes', /鞋|靴|shoe|boot/i, '左右两只成对并排、间隔少许，正面略带俯视，鞋底和鞋跟完整可见；不要腿和袜子。'],
   ['legwear', /袜|腿|stocking|sock|leg/i, '左右两条成对并排，保持穿着时的腿部形状和完整长度；不要鞋、不要皮肤、不要身体其他部分。'],
@@ -53,14 +59,16 @@ export function partPrompt(name) {
     '此图用于单独建模，不保证自动装配对齐。',
   ].join('\n')
 }
+// 0.3.4 REQ-074: the 0.3.3 sheet asked for a body base "穿不透明贴身内衬" plus "不要裸体"; with character
+// illustrations that combination is what the image model's safety review rejects, so sheet tasks kept failing.
+// The sheet now lists garments/props only; the proportion base is extracted separately (part mode「身体基准」).
 export function sheetPrompt() {
   return [
-    '图生图 · 角色拆件设定图（用于裁剪和三维建模；整张图也会直接送去建模）。',
-    '【保持】与输入图是同一角色：配色、材质、花纹、服装层次和配饰设计全部照原样，不新增、不改款。',
-    '【拆分】把角色拆成互相分离的独立部件，每件单独完整呈现：身体比例基准（穿不透明贴身内衬，标准 A 字站姿）、整顶头发（一整块）、头部与脸、上衣或外套、下装或裙装、袜子等腿部服饰、成对的鞋子、配饰和手持物。原图没有的部件直接省略，不要编造。',
-    '【排版】所有部件正面正交视角、同一比例尺，按身体从上到下排成整齐网格；部件之间留出明显空白，互不接触、互不遮挡、不被画面裁切；被遮挡处按原设计合理补全。',
-    '【画面】纯白背景，均匀平光，无投影、无透视夸张，无文字、编号、箭头或标注。',
-    '【禁止】不要裸体，不要多个角色，不要场景和地面。',
+    '图生图 · 角色服装与配件拆件设定图（用于裁剪和三维建模；整张图也可直接送去建模）。',
+    '【保持】与输入图是同一套设计：配色、材质、花纹、服装层次和配饰全部照原样，不新增、不改款。',
+    '【拆分】把可分离的部件逐件单独平铺展示：整顶头发（一整块，不含脸）、上衣或外套、下装或裙装、腿部服饰（成对）、鞋子（成对）、配饰和手持物。只画物件本身，不画人物；原图没有的部件直接省略，不要编造。',
+    '【排版】所有部件正面正交视角、同一比例尺，按穿戴位置从上到下排成整齐网格；部件之间留出明显空白，互不接触、互不遮挡、不被画面裁切；被遮挡处按原设计合理补全。',
+    '【画面】纯白背景，均匀平光，无投影、无透视夸张，无文字、编号、箭头或标注，不要场景和地面。',
   ].join('\n')
 }
 export function threeViewPrompt() {
@@ -68,11 +76,16 @@ export function threeViewPrompt() {
 }
 export const ASSEMBLY_GUIDE = '在 Blender 中以 Body 为比例基准，保持各部件独立可选中。对齐头发、头部、衣服、鞋袜，保留 UV、材质及已有骨架。先检查正/侧/后视图的穿插和缝隙，再复用或创建双足骨架，验证转头、抬臂、屈肘、屈膝四个姿势。布料模拟与发束骨骼需另行制作与验证；本工作台不会自动完成装配、绑定或动力学。'
 
+const MODEL_PARAM_KEYS = ['model', 'face_limit', 'texture', 'pbr', 'geometry_quality', 'texture_quality', 'quad', 'auto_size', 'smart_low_poly', 'texture_alignment', 'orientation']
 const fail = (message) => { throw Object.assign(new Error(message), {status: 400, code: 'INVALID_PARAMETERS'}) }
 const pick = (value, choices, name) => choices.includes(value) ? value : fail(`${name} 不受支持`)
 export function normalizeJob(kind, raw = {}) {
   pick(kind, KINDS, '任务类型')
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) fail('参数必须是对象')
+  if (kind === 'multiview-to-model') {
+    for (const key of Object.keys(raw)) if (!['views', ...MODEL_PARAM_KEYS].includes(key)) fail(`不支持的参数：${key}`)
+    return {views: normalizeViews(raw.views), ...modelParams(raw, {autofix: false})}
+  }
   const common = kind === 'image-to-model'
     ? ['input_asset', 'input_job', 'model', 'face_limit', 'texture', 'pbr', 'geometry_quality', 'texture_quality', 'quad', 'auto_size', 'smart_low_poly', 'enable_image_autofix', 'texture_alignment', 'orientation']
     : kind === 'model-convert' ? ['input_job', 'format', 'quad']
@@ -91,37 +104,7 @@ export function normalizeJob(kind, raw = {}) {
     if (raw.quad && format !== 'FBX') fail('四边面只支持 FBX 输出')
     return {...input, format, ...(raw.quad ? {quad: true} : {})}
   }
-  if (kind === 'image-to-model') {
-    const model = pick(raw.model ?? MODEL_VERSIONS[0], MODEL_VERSIONS, '3D 模型版本')
-    for (const k of ['texture', 'pbr', 'quad', 'auto_size', 'smart_low_poly', 'enable_image_autofix'])
-      if (raw[k] !== undefined && typeof raw[k] !== 'boolean') fail(`${k} 必须为布尔值`)
-    const texture = raw.texture ?? true, pbr = raw.pbr ?? true
-    const quad = raw.quad ?? false, smart = raw.smart_low_poly ?? false
-    if (!texture && pbr) fail('PBR 需要启用贴图')
-    const old = model === 'v2.5-20250123'
-    if (old && (quad || smart || raw.auto_size || raw.geometry_quality !== undefined || raw.texture_quality !== undefined))
-      fail('v2.5 不支持高级质量、四边面、智能低面数或自动尺寸')
-    const geometry = old ? 'standard' : pick(raw.geometry_quality ?? 'standard', ['standard', 'detailed'], '几何质量')
-    const face_limit = raw.face_limit ?? 50000
-    const max = modelFaceMax(model, {quad, smart, geometry})
-    if (!Number.isInteger(face_limit) || face_limit < 500 || face_limit > max) fail(`此模型/拓扑目标面数须为 500–${max} 的整数`)
-    if (!texture && raw.texture_quality !== undefined) fail('关闭贴图时不能选择贴图质量')
-    const params = {...input, model, face_limit, texture, pbr}
-    if (!old) {
-      params.geometry_quality = geometry
-      params.quad = quad
-      if (texture && raw.texture_quality !== undefined) params.texture_quality = pick(raw.texture_quality, ['standard', 'detailed', 'extreme'], '贴图质量')
-      if (raw.auto_size !== undefined) params.auto_size = raw.auto_size
-      if (raw.smart_low_poly !== undefined) params.smart_low_poly = smart
-    }
-    if (raw.enable_image_autofix !== undefined) params.enable_image_autofix = raw.enable_image_autofix
-    if (raw.texture_alignment !== undefined) params.texture_alignment = pick(raw.texture_alignment, ['original_image', 'geometry'], '贴图对齐')
-    if (raw.orientation !== undefined) {
-      if (!texture) fail('图像朝向对齐要求启用贴图')
-      params.orientation = pick(raw.orientation, ['default', 'align_image'], '模型朝向')
-    }
-    return params
-  }
+  if (kind === 'image-to-model') return {...input, ...modelParams(raw, {autofix: true})}
   if (typeof raw.prompt !== 'string' || !raw.prompt.trim() || raw.prompt.length > 6000) fail('提示词须为 1–6000 个字符')
   const model = pick(raw.model ?? IMAGE_MODELS[0], IMAGE_MODELS, '图像模型')
   if (raw.prompt.trim().length > promptCap(model)) fail(`当前模型提示词最多 ${promptCap(model)} 个字符；请手动缩短，不会自动截断或提交`)
@@ -138,4 +121,58 @@ export function normalizeJob(kind, raw = {}) {
     params.background=pick(raw.background,['auto','opaque','transparent'],'背景')
   }
   return params
+}
+
+/** 0.3.4 REQ-073: {front, left?, back?, right?} → canonical order; front required, ≥2 distinct local image assets. */
+export function normalizeViews(views) {
+  if (!views || typeof views !== 'object' || Array.isArray(views)) fail('多视图输入必须是 {front,left,back,right} 对象')
+  for (const key of Object.keys(views)) if (!MULTIVIEW_VIEWS.includes(key)) fail(`不支持的视角：${key}`)
+  const out = {}
+  for (const v of MULTIVIEW_VIEWS) {
+    if (views[v] === undefined || views[v] === '' || views[v] === null) continue
+    if (typeof views[v] !== 'string' || !/^[a-f0-9-]{36}$/.test(views[v])) fail(`${MULTIVIEW_LABELS[v]}图片引用无效`)
+    out[v] = views[v]
+  }
+  if (!out.front) fail('多视图建模必须提供正面图')
+  const ids = Object.values(out)
+  if (ids.length < 2) fail('多视图建模至少需要 2 张图（正面 + 至少一个其他视角）')
+  if (new Set(ids).size !== ids.length) fail('同一张图不能用于多个视角')
+  return out
+}
+// Shared H-series geometry/texture contract of image-to-model and multiview-to-model (same official caps).
+function modelParams(raw, {autofix}) {
+  const model = pick(raw.model ?? MODEL_VERSIONS[0], MODEL_VERSIONS, '3D 模型版本')
+  for (const k of ['texture', 'pbr', 'quad', 'auto_size', 'smart_low_poly', ...(autofix ? ['enable_image_autofix'] : [])])
+    if (raw[k] !== undefined && typeof raw[k] !== 'boolean') fail(`${k} 必须为布尔值`)
+  const texture = raw.texture ?? true, pbr = raw.pbr ?? true
+  const quad = raw.quad ?? false, smart = raw.smart_low_poly ?? false
+  if (!texture && pbr) fail('PBR 需要启用贴图')
+  const old = model === 'v2.5-20250123'
+  if (old && (quad || smart || raw.auto_size || raw.geometry_quality !== undefined || raw.texture_quality !== undefined))
+    fail('v2.5 不支持高级质量、四边面、智能低面数或自动尺寸')
+  const geometry = old ? 'standard' : pick(raw.geometry_quality ?? 'standard', ['standard', 'detailed'], '几何质量')
+  const face_limit = raw.face_limit ?? 50000
+  const max = modelFaceMax(model, {quad, smart, geometry})
+  if (!Number.isInteger(face_limit) || face_limit < 500 || face_limit > max) fail(`此模型/拓扑目标面数须为 500–${max} 的整数`)
+  if (!texture && raw.texture_quality !== undefined) fail('关闭贴图时不能选择贴图质量')
+  const params = {model, face_limit, texture, pbr}
+  if (!old) {
+    params.geometry_quality = geometry
+    params.quad = quad
+    if (texture && raw.texture_quality !== undefined) params.texture_quality = pick(raw.texture_quality, ['standard', 'detailed', 'extreme'], '贴图质量')
+    if (raw.auto_size !== undefined) params.auto_size = raw.auto_size
+    if (raw.smart_low_poly !== undefined) params.smart_low_poly = smart
+  }
+  if (autofix && raw.enable_image_autofix !== undefined) params.enable_image_autofix = raw.enable_image_autofix
+  if (raw.texture_alignment !== undefined) params.texture_alignment = pick(raw.texture_alignment, ['original_image', 'geometry'], '贴图对齐')
+  if (raw.orientation !== undefined) {
+    if (!texture) fail('图像朝向对齐要求启用贴图')
+    params.orientation = pick(raw.orientation, ['default', 'align_image'], '模型朝向')
+  }
+  return params
+}
+/** 0.3.4: local asset ids a job reads as input (single image or every multiview slot). */
+export function jobInputAssets(job) {
+  const p = job?.params ?? {}
+  return [...(p.input_asset ? [p.input_asset] : []), ...(p.views && typeof p.views === 'object' ? MULTIVIEW_VIEWS.map(v => p.views[v]).filter(Boolean) : [])]
 }

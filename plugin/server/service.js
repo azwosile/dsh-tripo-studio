@@ -9,10 +9,14 @@ function assertCurrentSite(job) {
   if (!isCurrentSiteJob(job)) fail('此为国际站或其他站点的历史任务，国内站不会提交、查询或重试下载；请到原站控制台处理。已保存的本地资产仍可使用。', 409, 'SITE_CHANGED')
 }
 const accountFingerprint = key => hash(JSON.stringify({site: TRIPO_SITE, key}))
-const CLOUD_TYPES = Object.freeze({text_to_image:'text-to-image', image_to_image:'image-to-image', image_to_model:'image-to-model', convert:'model-convert'})
+const CLOUD_TYPES = Object.freeze({text_to_image:'text-to-image', image_to_image:'image-to-image', image_to_model:'image-to-model', multiview_to_model:'multiview-to-model', convert:'model-convert'})
 const cloudType = kind => kind === 'model-convert' ? 'convert' : kind.replaceAll('-','_')
+// 0.3.4 REQ-073: the official result example for multiview reuses a generic "*_to_model" type string, so a
+// multiview job accepts any multiview/"_to_model" type; every other kind keeps the exact 0.3.3 check.
+const typeMatches = (kind, type) => kind === 'multiview-to-model' ? typeof type === 'string' && (/multiview/i.test(type) || /_to_model$/i.test(type)) : type === cloudType(kind)
+const CONVERT_INPUT_KINDS = ['image-to-model', 'multiview-to-model']
 import {CredentialStore, validateKey} from './credentials.js'
-import {normalizeJob, IMAGE_MODELS, IMAGE_SIZES, MODEL_VERSIONS} from '../shared/contracts.js'
+import {normalizeJob, IMAGE_MODELS, IMAGE_SIZES, MODEL_VERSIONS, MULTIVIEW_VIEWS, MULTIVIEW_LABELS, jobInputAssets} from '../shared/contracts.js'
 import {Store, fail, hash, uid, publicJob, APP_VERSION} from './store.js'
 import {TripoClient, downloadAsset, redact} from './tripo.js'
 
@@ -70,10 +74,19 @@ export class JobService {
       if (kind === 'image-to-image' && (a.width / a.height > 3 || a.height / a.width > 3)) fail('图像编辑要求宽高比在 1:3 与 3:1 之间，请先补白裁剪')
       inputHash = a.hash
     }
+    if (normalized.views) {
+      // 0.3.4 REQ-073: every view is a local image of this project; the approval binds all their hashes in canonical order.
+      const parts = MULTIVIEW_VIEWS.filter(v => normalized.views[v]).map(v => {
+        const a = this.store.asset(projectId, normalized.views[v])
+        if (a.kind !== 'image') fail(`${MULTIVIEW_LABELS[v]}必须是图像资产`)
+        return `${v}:${a.hash}`
+      })
+      inputHash = hash(parts.join('|'))
+    }
     if (normalized.input_job) {
       const j = this.store.job(projectId, normalized.input_job)
       assertCurrentSite(j)
-      const allowed = kind === 'model-convert' ? ['image-to-model'] : ['text-to-image', 'image-to-image']
+      const allowed = kind === 'model-convert' ? CONVERT_INPUT_KINDS : ['text-to-image', 'image-to-image']
       if (j.status !== 'success' || !allowed.includes(j.kind) || !validTaskId(j.taskId)) fail(kind === 'model-convert' ? '转换输入必须是成功的同账户3D任务' : '引用任务必须是成功的图像任务')
       if (j.accountHash !== accountFingerprint(this.key)) fail('引用任务使用了其他凭据；请使用已保存的本地图片重新上传', 409, 'ACCOUNT_CHANGED')
       inputHash = j.taskId
@@ -85,6 +98,9 @@ export class JobService {
     job.approvalHash = hash(JSON.stringify({site: TRIPO_SITE, projectId, kind, params: normalized, inputHash, accountHash, priority, role, ...(coverIds ? {covers: coverIds} : {})}))
     this.store.state.jobs[job.id] = job; this.store.save(); return publicJob(job)
   }
+  viewsHash(projectId, views) {
+    return hash(MULTIVIEW_VIEWS.filter(v => views[v]).map(v => `${v}:${hash(fs.readFileSync(this.store.assetPath(this.store.asset(projectId, views[v]))))}`).join('|'))
+  }
   async submit(projectId, id, approvalHash) {
     const job = this.store.job(projectId, id)
     assertCurrentSite(job)
@@ -95,6 +111,7 @@ export class JobService {
     if (job.params.prompt && job.params.prompt.trim().length > promptCap(job.params.model)) fail('草稿提示词超出当前模型长度上限，请缩短后重新准备；未提交',400,'PROMPT_TOO_LONG')
     if (job.accountHash !== accountFingerprint(this.key)) fail('账户已改变，原审批失效，请重新准备', 409, 'ACCOUNT_CHANGED')
     if (job.params.input_asset && hash(fs.readFileSync(this.store.assetPath(this.store.asset(projectId, job.params.input_asset)))) !== job.inputHash) fail('输入文件已改变，原审批失效', 409, 'INPUT_CHANGED')
+    if (job.params.views && this.viewsHash(projectId, job.params.views) !== job.inputHash) fail('多视图输入文件已改变，原审批失效', 409, 'INPUT_CHANGED')
     this.locks.add(id)
     let paidAttempted = false
     try {
@@ -105,10 +122,19 @@ export class JobService {
         params.input = await this.client.upload(fs.readFileSync(this.store.assetPath(a)), a.mime)
         delete params.input_asset
       }
+      if (params.views) {
+        // Free /files uploads, one per view; the paid create below is still a single POST (documented view-key format).
+        const inputs = []
+        for (const v of MULTIVIEW_VIEWS) if (params.views[v]) {
+          const a = this.store.asset(projectId, params.views[v])
+          inputs.push({[v]: await this.client.upload(fs.readFileSync(this.store.assetPath(a)), a.mime)})
+        }
+        params.inputs = inputs; delete params.views
+      }
       if (params.input_job) {
         const inputJob = this.store.job(projectId, params.input_job)
         assertCurrentSite(inputJob)
-        const allowed = job.kind === 'model-convert' ? ['image-to-model'] : ['text-to-image', 'image-to-image']
+        const allowed = job.kind === 'model-convert' ? CONVERT_INPUT_KINDS : ['text-to-image', 'image-to-image']
         if (inputJob.accountHash !== accountFingerprint(this.key) || inputJob.status !== 'success' || !allowed.includes(inputJob.kind) || inputJob.taskId !== job.inputHash) fail('引用任务已改变，请重新准备', 409, 'INPUT_CHANGED')
         params.input = inputJob.taskId; delete params.input_job
       }
@@ -173,7 +199,7 @@ export class JobService {
     if (!body || body.confirm !== true || Object.keys(body).some(k=>k!=='confirm')) fail('删除参考图需要明确确认')
     const a = this.store.asset(projectId, id)
     if (this.refreshing.has(projectId)) fail('任务刷新中，暂不能删除资产', 409)
-    if (Object.values(this.store.state.jobs).some(j=>j.params?.input_asset===id || j.assetIds?.includes(id) || j.id===a.sourceJobId))
+    if (Object.values(this.store.state.jobs).some(j=>jobInputAssets(j).includes(id) || j.assetIds?.includes(id) || j.id===a.sourceJobId))
       fail('此资产仍关联任务；请保留资产，或先处理关联的本地任务记录',409,'ASSET_IN_USE')
     const result=this.store.commitDeletion(projectId,{assetIds:[id]})
     return {deleted:true,id,...result,note:'已删除此本地文件和资产记录；不会修改云端任务。'}
@@ -187,7 +213,7 @@ export class JobService {
     const assetIds = body.deleteAssets ? [...new Set([...(job.assetIds||[]),...Object.values(this.store.state.assets).filter(a=>a.sourceJobId===id).map(a=>a.id)])].filter(a=>this.store.state.assets[a]) : []
     for (const assetId of assetIds) {
       this.store.asset(projectId,assetId)
-      if (Object.values(this.store.state.jobs).some(j=>j.id!==id && (j.params?.input_asset===assetId || j.assetIds?.includes(assetId))))
+      if (Object.values(this.store.state.jobs).some(j=>j.id!==id && (jobInputAssets(j).includes(assetId) || j.assetIds?.includes(assetId))))
         fail('已有其他任务引用产出资产；不能连同资产删除',409,'ASSET_IN_USE')
     }
     const result=this.store.commitDeletion(projectId,{jobId:id,assetIds})
@@ -219,7 +245,7 @@ export class JobService {
   }
   applyTaskResult(job, result) {
     if (!result || typeof result !== 'object' || (result.task_id !== undefined && result.task_id !== job.taskId)) fail('任务响应标识不匹配，未更新本地状态', 502)
-    if (result.type !== undefined && result.type !== cloudType(job.kind)) fail('云端任务类型与本地记录不符，未更新本地状态',502)
+    if (result.type !== undefined && !typeMatches(job.kind, result.type)) fail('云端任务类型与本地记录不符，未更新本地状态',502)
     if (!['queued','running','success','failed','cancelled'].includes(result.status)) fail('未知云端任务状态，未更新本地状态', 502)
     job.status = result.status
     job.progress = result.status === 'success' ? 100 : Math.min(100,Math.max(0,Number(result.progress)||0))
@@ -244,7 +270,7 @@ export class JobService {
     this.locks.add(id);this.locks.add(lock)
     try {
       const result = await this.client.task(body.taskId) // GET only; no upload or paid create.
-      if (result?.task_id !== body.taskId || result?.type !== cloudType(job.kind)) fail('云端ID或任务类型与本地记录不符；未关联，请核对控制台',409)
+      if (result?.task_id !== body.taskId || !typeMatches(job.kind, result?.type)) fail('云端ID或任务类型与本地记录不符；未关联，请核对控制台',409)
       if (!['queued','running','success','failed','cancelled'].includes(result.status)) fail('云端状态不能识别，未关联',502)
       if (Object.values(this.store.state.jobs).some(j=>j.id!==id && j.taskId?.toLowerCase()===body.taskId.toLowerCase())) fail('此云端ID已关联其他本地任务，未重复导入',409)
       job.taskId = body.taskId;job.recoveredAt = new Date().toISOString();job.tracking = true
@@ -302,7 +328,7 @@ export class JobService {
         job.output = fresh.output ?? job.output
         this.store.save()
       }
-      const kind = ['image-to-model','model-convert'].includes(job.kind) ? 'model' : 'image'
+      const kind = ['image-to-model','multiview-to-model','model-convert'].includes(job.kind) ? 'model' : 'image'
       const existing = Object.values(this.store.state.assets).find(a=>a.projectId === projectId && a.sourceJobId === job.id && a.kind === kind)
       if (existing) {job.assetIds=[existing.id];job.downloadStatus='downloaded';job.downloadError=null;this.store.save();return publicJob(job)}
       const url = job.output?.[kind === 'model' ? 'model_url' : 'generated_image_url']

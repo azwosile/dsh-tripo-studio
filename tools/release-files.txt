@@ -35,6 +35,8 @@ plugin/client-src/model-price-tips.jsx
 plugin/client-src/model-roles.js
 plugin/client-src/model-thumb.jsx
 plugin/client-src/model-tips.jsx
+plugin/client-src/multiview-plan.jsx
+plugin/client-src/multiview.js
 plugin/client-src/preview-3d.jsx
 plugin/client-src/prompt-hint.jsx
 plugin/client-src/relations.js
@@ -46,15 +48,17 @@ plugin/client-src/styles.js
 plugin/client-src/task-list.jsx
 plugin/client-src/titlebar-glass.js
 plugin/client-src/v033-styles.js
+plugin/client-src/v034-styles.js
 plugin/client-src/workflow-styles.js
 plugin/client-src/workflow.jsx
 plugin/cordis.patch.yml
 plugin/index.js
-plugin/lib/client-v0.3.3.js
+plugin/lib/client-v0.3.4.js
 plugin/package-lock.json
 plugin/package.json
 plugin/scripts/build-client.mjs
 plugin/scripts/install-local.mjs
+plugin/scripts/install-official.mjs
 plugin/scripts/preview.html
 plugin/scripts/smoke-test.mjs
 plugin/scripts/test-appearance.mjs
@@ -69,6 +73,7 @@ plugin/scripts/test-v030.mjs
 plugin/scripts/test-v031.mjs
 plugin/scripts/test-v032.mjs
 plugin/scripts/test-v033.mjs
+plugin/scripts/test-v034.mjs
 plugin/scripts/uninstall-local.mjs
 plugin/server/config.js
 plugin/server/credentials.js
@@ -81,6 +86,7 @@ plugin/server/task-maintenance.js
 plugin/server/tripo.js
 plugin/shared/contracts.js
 plugin/shared/credit-estimate.js
+plugin/shared/host-paths.js
 plugin/shared/image-models.js
 plugin/shared/local-api.js
 plugin/shared/model-pricing.js
@@ -93,6 +99,7 @@ plugin/tests/core.test.mjs
 plugin/tests/credentials.test.mjs
 plugin/tests/fixtures/host-router.mjs
 plugin/tests/fixtures/reference.png
+plugin/tests/host-paths.test.mjs
 plugin/tests/local-api.test.mjs
 plugin/tests/routes.test.mjs
 plugin/tests/v0210-tasks.test.mjs
@@ -107,6 +114,7 @@ plugin/tests/v028-storage.test.mjs
 plugin/tests/v029-recovery.test.mjs
 plugin/tests/v030-upgrade.test.mjs
 plugin/tests/v033-unified.test.mjs
+plugin/tests/v034-multiview.test.mjs
 tools/package_release.py
 tools/release-files.txt
 tools/verify_release.py

@@ -2,6 +2,20 @@
 
 本页记录**产品改动**，不再把安装流水账写入 README。日期来自原开发记录；不是本次重新完成真实 API/原生 GUI 验收的日期。当前用法以 [README](README.md) 和[安装说明](docs/INSTALLATION.md)为准。
 
+## 0.3.4 · 2026-10-01
+
+- **多视图生成模型**：按官方 [多视图生成模型（H 系列）](https://developers.tripo3d.com/zh/docs/generation-multiview-to-model/standard) 接入 `POST /v3/generation/multiview-to-model`。统一建模页新增「③ 多视图建模」：正面（必填）＋左侧／背面／右侧（可选），至少 2 张、互不重复，可按文件名自动填充（front/left/back/right、正面/左/背面/右）。确认后各视角走免费 `/files` 上传，再**一次**收费创建（官方推荐的 view-key `inputs`）；审批绑定全部视角文件哈希，文件变化须重新审阅。建模参数与图生 3D 相同（不含多视图接口没有的“生成前优化参考图”），参考积分与图生 3D 相同；结果可下载、预览、格式转换。“左/右”指物体自身的左/右，结果镜像时交换两槽。
+- **整张拆件图紫色**：被设为整张拆件图的图统一紫色框（`#7c4dcc`），不再随它自己的主要/次要/基准标签显示红或蓝；图例新增「拆件图 · 紫色」，来源 → 部件页同步。
+- **拆件图任务失败**：0.3.3 预设提示词里“贴身内衬”“不要裸体”等字样容易被图像模型内容安全审核判为人体/裸露描述（否定句也会触发）。整张拆件图改为只拆服装与配件、明确“不画人物”；身体基准改为“穿浅灰色长袖连体运动服的人台”。失败任务若像审核拦截，任务卡给出处理建议。项目里保存过自定义旧提示词的，请点「恢复预设」。
+- 宿主兼容补丁并入正式版本；新增 `npm run test:v034`。
+
+## 0.3.3 宿主兼容补丁 · 2026-09-29（功能与客户端构建不变）
+
+- **支持官方桌面端**：静态检查并在官方 DeepSeek Harness 0.2.0-rc.2 自带运行时实测：服务端路由（`webServer` prefix）、客户端模块注册（`__ModuleLoader__` / `sidebar.panellist` / `main` 槽位）均可用，无需重建 `lib/client-v0.3.3.js`。
+- **与宿主无关的数据目录**：新增 `shared/host-paths.js`。优先级：`TRIPO_STUDIO_DATA_DIR` → 已存在的旧目录 `%APPDATA%\dsh-desktop\tripo-studio`（保证迁移后项目/Key 不丢）→ `$DSH_HOME/tripo-studio`。
+- **安装器**：`install-local.mjs` / `uninstall-local.mjs` 新增 `--target=official`（新文件 `scripts/install-official.mjs`），走官方 `dsh plugin --profile desktop add|remove`，检查 `DeepSeek Harness.exe` 已退出并备份 profile；默认 `--target=community` 行为不变。
+- 已知限制：窗口标题栏玻璃效果依赖社区版的 `dsh-desktop-titlebar-inset` 参数与 body class，在官方桌面端自动不显示，不影响其他功能。
+
 ## 0.3.3 · 2026-09-27
 
 - **统一建模**：取消“整体打底／部件精修”两个入口，合并为一页。部件标签改为 主要（绿，单独建模）、次要（蓝，随整张拆件图一次建模）、基准（红，单独建模作比例参照）；拆件图任务记录它代表的次要部件（`covers`），不改变存储格式，旧任务照常显示。

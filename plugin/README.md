@@ -1,6 +1,6 @@
-# dsh-tripo-studio · 0.3.3
+# dsh-tripo-studio · 0.3.4
 
-DSH Desktop 的本地 Tripo 工作台：参考图创作、拆件与裁剪、逐件图生 3D、任务管理和本机预览。当前仅接入 Tripo 国内站；不是 Blender 插件，不自动修模、装配或绑定。
+DSH Desktop（社区版）与 DeepSeek Harness 官方桌面端通用的本地 Tripo 工作台：参考图创作、拆件与裁剪、逐件图生 3D、多视图生 3D、任务管理和本机预览。当前仅接入 Tripo 国内站；不是 Blender 插件，不自动修模、装配或绑定。
 
 ## 本地安装（Windows）
 
@@ -12,9 +12,18 @@ node .\scripts\install-local.mjs --dry-run
 node .\scripts\install-local.mjs --apply
 ```
 
-发布包带 `lib/client-v0.3.3.js`。安装器备份旧插件/profile，保留数据，不自动启动宿主，不调用 Tripo，也不安装全局依赖。
+官方桌面端（DeepSeek Harness，已验证 0.2.0-rc.2）：先从托盘完全退出，再运行
 
-启动 DSH 后，从 Tripo Studio 的连接设置填写国内站 Key；生成前明确开启收费并逐次审阅确认。不要把 Key 写进源码。数据默认位于 `%APPDATA%\dsh-desktop\tripo-studio`，不在插件安装目录中。
+```powershell
+node .\scripts\install-local.mjs --target=official --dsh="<安装目录>\resources\runtime\cli\bin\dsh.cmd" --dry-run
+node .\scripts\install-local.mjs --target=official --dsh="<安装目录>\resources\runtime\cli\bin\dsh.cmd" --apply
+```
+
+它通过官方自带的 `dsh plugin --profile desktop add` 登记插件（插件文件放在 `%USERPROFILE%\.dsh\local-plugins`）。卸载同理：`uninstall-local.mjs --target=official --apply`。
+
+发布包带 `lib/client-v0.3.4.js`。安装器备份旧插件/profile，保留数据，不自动启动宿主，不调用 Tripo，也不安装全局依赖。
+
+启动 DSH 后，从 Tripo Studio 的连接设置填写国内站 Key；生成前明确开启收费并逐次审阅确认。不要把 Key 写进源码。数据根目录：若 `%APPDATA%\dsh-desktop\tripo-studio` 已存在则继续使用（两个桌面端共用同一批项目和 Key），否则新装默认 `%USERPROFILE%\.dsh\tripo-studio`；不在插件安装目录中。不要让两个桌面端同时运行本插件。
 
 当前环境变量是 `TRIPO_CN_API_KEY`、`TRIPO_CN_ENABLE_PAID`、`TRIPO_STUDIO_DATA_DIR`；旧国际站变量不再作为凭据入口。默认拒绝远程和反代访问。
 

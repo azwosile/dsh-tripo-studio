@@ -93,7 +93,9 @@ test('prompts: structured generic templates; hair contract kept',()=>{
   assert.equal(partCategory(name),cat,name);const p=partPrompt(name)
   assert.ok(p.includes(`「${name}」`)&&p.includes('【部件要求】')&&p.includes('纯白背景'),name);assert.ok(p.length<600,name)
  }
- const s=sheetPrompt();for(const k of ['【保持】','【拆分】','【排版】','【画面】','【禁止】','同一比例尺','互不接触','不要裸体'])assert.ok(s.includes(k),k)
+ const s=sheetPrompt();for(const k of ['【保持】','【拆分】','【排版】','【画面】','同一比例尺','互不接触','不画人物'])assert.ok(s.includes(k),k)
+ // 0.3.4 REQ-074: the 0.3.3 wording (内衬/贴身/不要裸体) reads as body/nudity to image moderation and the sheet task failed.
+ for(const k of ['裸','内衬','贴身','内衣','身体'])assert.ok(!s.includes(k),k)
  assert.ok(s.length<700)
 })
 

@@ -1,6 +1,6 @@
 import React from 'react'
 import {ImageEdit,editSpecs} from './image-edit.jsx'
-import {threeViewPrompt} from '../shared/contracts.js'
+import {threeViewPrompt,MULTIVIEW_VIEWS,MULTIVIEW_LABELS} from '../shared/contracts.js'
 import {CropPanel} from './crop-panel.jsx'
 import {ImageTile} from './image-card.jsx'
 import {ImageLightbox} from './image-lightbox.jsx'
@@ -24,7 +24,7 @@ import {estimateBatch,estimateJobCredits,formatCredits} from '../shared/credit-e
 
 const STATUS = {awaiting_approval: '等待审批', submitting: '提交中', submission_unknown: '提交结果未知 · 禁止自动重发', queued: '排队中', running: '生成中', success: '云端成功', failed: '失败', cancelled: '云端已取消', discarded: '草稿已丢弃'}
 const STAGES = ['生图定稿', '拆件与裁剪', '统一建模', '交付与导入', '来源 → 部件']
-const APP_VERSION = '0.3.3'
+const APP_VERSION = '0.3.4'
 function saveJson(value, name) {
   const blob = new Blob([JSON.stringify(value, null, 2)], {type: 'application/json'}), url = URL.createObjectURL(blob)
   const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
@@ -247,7 +247,7 @@ export function Workflow({onPreview}) {
   const splitCustom = splitMode === 'sheet' ? sheetPromptText !== null : partPromptText !== null
   const setSplitPromptValue = v => { const next = v === splitPreset ? null : v; if (splitMode === 'sheet') setSheetPromptText(next); else setPartPromptText(next) }
   const drafts = project?.jobs.filter(j => j.hidden!==true && isCurrentSiteJob(j) && j.status === 'awaiting_approval') ?? []
-  const convertJobs=project?.jobs.filter(j=>j.hidden!==true&&isCurrentSiteJob(j)&&j.kind==='image-to-model'&&j.status==='success'&&validTaskId(j.taskId))??[]
+  const convertJobs=project?.jobs.filter(j=>j.hidden!==true&&isCurrentSiteJob(j)&&['image-to-model','multiview-to-model'].includes(j.kind)&&j.status==='success'&&validTaskId(j.taskId))??[]
   const canPreviewModel=a=>['glb','gltf','fbx','obj','stl'].includes(a.format||'glb')
   const selectSource=a=>{select(a);setCropOrigin(a.sourceAssetId&&images.some(x=>x.id===a.sourceAssetId)?a.sourceAssetId:a.id)}
   const counts = jobCounts(project?.jobs||[])
@@ -405,8 +405,9 @@ export function Workflow({onPreview}) {
       <BalanceCheck balance={balance} estimate={estimateBatch(approval)} busy={busy} canQuery={Boolean(status?.keyConfigured)} onQuery={queryBalance}/>
       <div className="tw-approval-list">{approval.map(d=>{const input=d.params?.input_asset&&images.find(a=>a.id===d.params.input_asset),est=estimateJobCredits(d);return <article key={d.id} data-kind={d.kind}><strong>{d.label} · <span className={`tw-kind-tag kind-${d.kind}`}>{KIND_LABEL[d.kind]||d.kind}</span> <code>{d.kind}</code></strong>
         {input&&<div className="tw-approval-input"><img src={input.url} alt={input.label}/><small>{d.kind==='image-to-image'?'图生图输入图':'建模输入图'}：{input.label}</small></div>}
+        {d.kind==='multiview-to-model'&&<div className="tw-approval-views" aria-label="多视图输入">{MULTIVIEW_VIEWS.filter(v=>d.params?.views?.[v]).map(v=>{const a=images.find(x=>x.id===d.params.views[v]);return a?<div className="tw-approval-input" key={v}><img src={a.url} alt={a.label}/><small>{MULTIVIEW_LABELS[v]}：{a.label}</small></div>:null})}</div>}
         {d.kind==='text-to-image'&&<small className="tw-approval-noinput">文生图：不上传任何图片，只发送提示词。</small>}
-        <pre>{JSON.stringify(d.params,null,2)}</pre><small>{d.kind==='model-convert'?`格式转换到 ${d.params.format} · 新增独立收费任务，不自动触发`:d.kind==='image-to-model'?(d.role==='sheet'?`整张拆件图 · 代替 ${d.covers?.length??0} 个次要部件一次建模 · 1 个独立收费任务，不自动拆分或装配`:d.role==='whole'?'整体打底（旧版计划）· 独立收费，未自动装配':`${jobRoleLabel(d)} · 独立收费任务`):priceText(d.params.model,d.params.quality)}<br/>参考积分：{est===null?'未能按公开表估算':`约 ${est}`}<br/>输入哈希：{d.inputHash||'纯文本'}<br/>审批绑定国内站、当前图片、参数与账户；后续改图需重新准备。</small></article>})}</div><label className="tw-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>我已核对上述输入与任务数量，同意数据上传及实际积分扣除。</label><div className="tw-actions"><button disabled={busy} onClick={()=>run(cancelApproval)}>取消并丢弃草稿</button><button className="tw-primary" disabled={!consent||busy||!canPay} onClick={()=>run(confirm)}>确认上传并提交 {approval.length} 个任务</button></div></div></div>}
+        <pre>{JSON.stringify(d.params,null,2)}</pre><small>{d.kind==='model-convert'?`格式转换到 ${d.params.format} · 新增独立收费任务，不自动触发`:d.kind==='multiview-to-model'?`多视图生3D · ${Object.keys(d.params?.views??{}).length} 个视角各自免费上传后合并为 1 个独立收费任务，不自动装配`:d.kind==='image-to-model'?(d.role==='sheet'?`整张拆件图 · 代替 ${d.covers?.length??0} 个次要部件一次建模 · 1 个独立收费任务，不自动拆分或装配`:d.role==='whole'?'整体打底（旧版计划）· 独立收费，未自动装配':`${jobRoleLabel(d)} · 独立收费任务`):priceText(d.params.model,d.params.quality)}<br/>参考积分：{est===null?'未能按公开表估算':`约 ${est}`}<br/>输入哈希：{d.inputHash||'纯文本'}<br/>审批绑定国内站、当前图片、参数与账户；后续改图需重新准备。</small></article>})}</div><label className="tw-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>我已核对上述输入与任务数量，同意数据上传及实际积分扣除。</label><div className="tw-actions"><button disabled={busy} onClick={()=>run(cancelApproval)}>取消并丢弃草稿</button><button className="tw-primary" disabled={!consent||busy||!canPay} onClick={()=>run(confirm)}>确认上传并提交 {approval.length} 个任务</button></div></div></div>}
     {deleteImage&&<div className="tw-modal" role="dialog" aria-modal="true" aria-label="删除参考图确认"><div className="tw-dialog"><h2>删除本机参考图？</h2><p>即将删除「{deleteImage.label}」的本地文件和资产记录，此操作不可撤回。云端任务和其他文件不会受影响。</p>{deleteImageError&&<p className="tw-danger" role="alert">{deleteImageError}</p>}<div className="tw-actions"><button disabled={busy} onClick={()=>setDeleteImage(null)}>保留图片</button><button disabled={busy} onClick={()=>run(async()=>{const id=deleteImage.id;setDeleteImageError('');try{await api(`/projects/${project.id}/assets/${id}/delete`,'POST',{confirm:true})}catch(e){setDeleteImageError(e.message);return}setDeleteImage(null);if(selected===id)setSelected('');if(wholeAsset===id)setWholeAsset('');if(sheetAsset===id)setSheetAsset('');await load(project.id);setMessage('已删除本机参考图及资产记录')})}>确认删除本机图片</button></div></div></div>}
     <ImageLightbox asset={zoomAsset} onClose={()=>setZoomAsset(null)}/>
   </div>
