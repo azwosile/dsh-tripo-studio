@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-TOP = 'dsh-tripo-blender'
+TOP = 'dsh-tripo-studio'
 MANIFEST = 'SHA256SUMS.txt'
 FORBIDDEN_PARTS = {'.git', 'node_modules', 'secrets', 'credentials', 'private', 'data', 'projects', 'files', 'backups', 'validation', 'assets', 'models', 'textures', 'references', 'exports', '资产', '__pycache__'}
 FORBIDDEN_EXTS = {'.blend', '.blend1', '.blend2', '.glb', '.gltf', '.fbx', '.obj', '.mtl', '.stl', '.ply', '.dae', '.usd', '.usda', '.usdc', '.usdz', '.abc', '.3mf', '.vrm', '.pmx', '.pmd', '.vmd', '.smd', '.dxf', '.3ds', '.max', '.ma', '.mb', '.c4d', '.zpr', '.ztl', '.bin', '.spp', '.sbsar', '.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tga', '.tif', '.tiff', '.hdr', '.exr', '.dds', '.ktx', '.ktx2', '.psd', '.zip', '.7z', '.rar', '.tar', '.gz', '.tgz', '.bak', '.pem', '.key', '.pfx', '.p12', '.log', '.tmp'}

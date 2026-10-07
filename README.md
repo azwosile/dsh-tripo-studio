@@ -4,7 +4,7 @@
 
 当前版本 **0.3.5** · Windows 本地插件 · Tripo 国内站 · MIT
 
-> 仓库名为 `dsh-tripo-blender`，插件实际名称及包名分别是 **DSH Tripo Studio**、`dsh-tripo-studio`。它不是 Blender 插件，也不会自动启动 Blender、修模、装配或绑定骨骼。生成结果可以下载后交给 Blender 等工具继续处理。
+> 插件名称为 **DSH Tripo Studio**，仓库名与包名统一为 `dsh-tripo-studio`（仓库原名 `dsh-tripo-blender`，2026-10-08 更名，旧链接会自动跳转，见 [CHANGELOG](CHANGELOG.md)）。它不是 Blender 插件，也不会自动启动 Blender、修模、装配或绑定骨骼。生成结果可以下载后交给 Blender 等工具继续处理。
 
 ## 能做什么
 
@@ -82,7 +82,7 @@ node .\scripts\install-local.mjs --apply
 ## 仓库结构
 
 ```text
-dsh-tripo-blender/
+dsh-tripo-studio/
 ├─ README.md                  # 当前插件介绍
 ├─ CHANGELOG.md               # 产品版本历史
 ├─ LICENSE                    # MIT

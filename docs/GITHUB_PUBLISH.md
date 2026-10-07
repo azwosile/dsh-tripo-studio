@@ -7,7 +7,7 @@
 ## 推荐：先用 GitHub Desktop 建立私有仓库
 
 1. 在本机保留这份干净目录，先核对 `README.md`、`CHANGELOG.md` 和审计报告。
-2. 用 GitHub Desktop 的 **Create a New Repository on your Hard Drive**：名称填写 `dsh-tripo-blender`，Local path 选择该目录的**父目录**。最终路径应恰好指向现有干净目录，不要再套一层同名目录。
+2. 用 GitHub Desktop 的 **Create a New Repository on your Hard Drive**：名称填写 `dsh-tripo-studio`，Local path 选择该目录的**父目录**。最终路径应恰好指向现有干净目录，不要再套一层同名目录。
 3. 已有 README、LICENSE 和忽略规则，不要用模板覆盖它们。检查 Changes；只能出现源码、文档、工具、当前 JS 和一个几何测试 PNG，不能有模型、Key 或运行数据。
 4. 由你确认后创建初始提交，再选择 **Publish repository**，建议先勾选 **Keep this code private**。
 5. 在 GitHub 再检查一遍文件和许可证，确认后再决定是否公开。
@@ -40,7 +40,7 @@ git commit -m "Initial source release: DSH Tripo Studio 0.3.2"
 在 GitHub 网页建立一个**空的**仓库，建议先选 Private，不额外初始化 README、License 或 gitignore。将下面的占位地址替换为你自己的地址：
 
 ```powershell
-git remote add origin https://github.com/<你的用户名>/dsh-tripo-blender.git
+git remote add origin https://github.com/<你的用户名>/dsh-tripo-studio.git
 git remote -v
 git push -u origin main
 ```
@@ -64,13 +64,13 @@ git push -u origin main
 需要 Python 3.10+。外部 `*.zip.sha256` 是 ZIP 的 SHA-256；Windows 可先运行：
 
 ```powershell
-Get-FileHash ..\dsh-tripo-blender-v0.3.5-github-20261002.zip -Algorithm SHA256
+Get-FileHash ..\dsh-tripo-studio-v0.3.5-github-20261008.zip -Algorithm SHA256
 ```
 
 将结果与旁边的 `.sha256` 文件比较。再校验 ZIP 内逐文件哈希和严格排除规则：
 
 ```powershell
-python -B .\tools\verify_release.py ..\dsh-tripo-blender-v0.3.5-github-20261002.zip
+python -B .\tools\verify_release.py ..\dsh-tripo-studio-v0.3.5-github-20261008.zip
 # 或校验刚解压、尚未初始化 Git/安装依赖/运行测试的干净目录：
 python -B .\tools\verify_release.py .
 ```
@@ -93,7 +93,19 @@ git push origin main
 git push origin v0.3.5
 ```
 
-可选：在 GitHub 的 **Releases → Draft a new release** 选择标签 `v0.3.5`，把 `dsh-tripo-blender-v0.3.5-github-20261002.zip` 及其 `.sha256` 作为附件上传。使用 GitHub Desktop 时同理：检查 Changes → 填写提交说明 → Commit to main → Push origin；标签可在 History 中右键提交创建后再推送。
+可选：在 GitHub 的 **Releases → Draft a new release** 选择标签 `v0.3.5`，把 `dsh-tripo-studio-v0.3.5-github-20261008.zip` 及其 `.sha256` 作为附件上传。使用 GitHub Desktop 时同理：检查 Changes → 填写提交说明 → Commit to main → Push origin；标签可在 History 中右键提交创建后再推送。
+
+## 仓库更名（2026-10-08）
+
+GitHub 仓库已从 `azwosile/dsh-tripo-blender` 更名为 `azwosile/dsh-tripo-studio`，与插件包名一致。GitHub 会把旧地址自动跳转到新仓库，但建议已克隆的副本更新 remote：
+
+```powershell
+git remote set-url origin https://github.com/azwosile/dsh-tripo-studio.git
+git remote -v
+git fetch origin
+```
+
+发布包顶层目录与文件名同步改为 `dsh-tripo-studio`（`tools/package_release.py` 的 `TOP`）。插件 ID、包名、数据目录与安装位置都没有变，已安装的插件无需重装。0.3.5 及更早的旧发布包仍以 `dsh-tripo-blender-*.zip` 命名，各自的 `.sha256` 不受影响。
 
 ## 以后如何重新打包
 
@@ -103,8 +115,8 @@ git push origin v0.3.5
 4. 在仓库根目录运行，输出路径必须位于仓库外，且不能覆盖已有包：
 
 ```powershell
-python -B .\tools\package_release.py ..\dsh-tripo-blender-new-reviewed-snapshot.zip
-python -B .\tools\verify_release.py ..\dsh-tripo-blender-new-reviewed-snapshot.zip
+python -B .\tools\package_release.py ..\dsh-tripo-studio-new-reviewed-snapshot.zip
+python -B .\tools\verify_release.py ..\dsh-tripo-studio-new-reviewed-snapshot.zip
 ```
 
 工具只读取白名单文件，拒绝路径越界、符号链接、禁止扩展名、历史 bundle、异常大文件和部分高置信凭据模式；重新生成内嵌哈希及外部 SHA-256。未列入白名单的模型即使放在源码树内也不会被复制。不要只依赖扩展名或扫描器判断文件是否可以公开。

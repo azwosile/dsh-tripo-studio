@@ -2,6 +2,14 @@
 
 本页记录**产品改动**，不再把安装流水账写入 README。日期来自原开发记录；不是本次重新完成真实 API/原生 GUI 验收的日期。当前用法以 [README](README.md) 和[安装说明](docs/INSTALLATION.md)为准。
 
+## 仓库更名 · 2026-10-08（插件版本仍为 0.3.5，功能与构建不变）
+
+- **新名称 `dsh-tripo-studio`**：GitHub 仓库由 `azwosile/dsh-tripo-blender` 更名为 [`azwosile/dsh-tripo-studio`](https://github.com/azwosile/dsh-tripo-studio)，与插件名称 **DSH Tripo Studio** 和包名 `dsh-tripo-studio` 一致，避免误以为是 Blender 插件。旧链接由 GitHub 自动跳转。
+- **已克隆的副本**：`git remote set-url origin https://github.com/azwosile/dsh-tripo-studio.git`。
+- **发布包**：顶层目录与文件名改为 `dsh-tripo-studio`，本次重新打包为 `dsh-tripo-studio-v0.3.5-github-20261008.zip`。
+- **不变**：插件 ID、包名、`lib/client-v0.3.5.js`、数据目录（`tripo-studio`）与安装位置均未改动，已安装的 0.3.5 无需重装。
+- README、发布说明（`docs/GITHUB_PUBLISH.md`）、打包工具与文件哈希清单同步更新。
+
 ## 0.3.5 · 2026-10-02
 
 - **重拓扑（附官方提示）**：按官方 [重拓扑 /v3/mesh/decimate](https://developers.tripo3d.com/zh/docs/mesh-decimate) 新增统一建模页「⑤ 重拓扑 / 减面」。v2.0 智能重拓扑（30 积分；面数可不填由官方自适应，或三角面 500–20,000／四边面 500–10,000；可关闭 bake）、v1.0 基础减面（10 积分；面数必填，三角面 ≤2,000,000／四边面 ≤150,000；不支持 bake）。输入为已成功的同账户图生 3D／多视图生 3D 任务，结果另存为新的模型资产，原模型不变。面板常驻 **Tripo 官方提示**（价格、面数范围、输出 GLB、150 MB、v1.0 限制、复杂模型可能失败、独立收费），**须勾选「已阅读官方提示」才能准备任务**，审批框再次显示。
