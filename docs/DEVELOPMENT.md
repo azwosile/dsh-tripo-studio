@@ -27,8 +27,8 @@ npm test
 
 构建产物：
 
-- `plugin/lib/client-v0.3.5.js`：正式插件入口，仓库保留此当前构建。
-- `Tripo-Studio-Workbench-v0.3.5.html`：根目录单文件离线预览，带 React/ReactDOM，仅供本机界面/导入预览。被 `.gitignore` 排除，默认不纳入源码发布包。
+- `plugin/lib/client-v0.3.6.js`：正式插件入口，仓库保留此当前构建。
+- `Tripo-Studio-Workbench-v0.3.6.html`：根目录单文件离线预览，带 React/ReactDOM，仅供本机界面/导入预览。被 `.gitignore` 排除，默认不纳入源码发布包。
 
 `package.json` 的 `private: true` 防止误发 npm，**不影响上传 GitHub**。不应为了 GitHub 发布而移除此保护。
 
@@ -44,6 +44,7 @@ npm run test:compat
 npm run test:v033
 npm run test:v034
 npm run test:v035
+npm run test:v036
 ```
 
 历史回归入口：`test:v029`、`test:v0210`、`test:v0211`、`test:v0212`、`test:v030`、`test:v031`、`test:v032`。这些名字标识回归场景，测试运行的是当前客户端，不需要历史 JS bundle。

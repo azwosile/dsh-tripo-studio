@@ -15,7 +15,7 @@ import {ModelPlan} from './model-plan.jsx'
 import {IMAGE_MODEL_INFO,isImageSize,imageDefaults,imageRequest,priceText} from '../shared/image-models.js'
 import {createLocalApi} from './local-api.js'
 import {CredentialSettings} from './credential-settings.jsx'
-import {IMAGE_MODELS, IMAGE_SIZES, MODEL_VERSIONS, PARTS, partPrompt, sheetPrompt, ASSEMBLY_GUIDE, modelFaceMax} from '../shared/contracts.js'
+import {IMAGE_MODELS, IMAGE_SIZES, MODEL_VERSIONS, PARTS, partPrompt, sheetPrompt, ASSEMBLY_GUIDE, modelFaceMax, modelFaceMin, isPSeries} from '../shared/contracts.js'
 import {readImageFile, cropImage, cropSelectionImage, detectParts, normalizeRect, sampleImageColor} from './image-tools.js'
 import {MAX_BATCH_PARTS} from './model-plan.jsx'
 import {Library,LibraryRail,TaskDock,Relations,Info,readLayout,writeLayout,LIB_PUSH_MIN} from './studio-layout.jsx'
@@ -25,7 +25,7 @@ import {estimateBatch,estimateJobCredits,formatCredits} from '../shared/credit-e
 
 const STATUS = {awaiting_approval: '等待审批', submitting: '提交中', submission_unknown: '提交结果未知 · 禁止自动重发', queued: '排队中', running: '生成中', success: '云端成功', failed: '失败', cancelled: '云端已取消', discarded: '草稿已丢弃'}
 const STAGES = ['生图定稿', '拆件与裁剪', '统一建模', '交付与导入', '来源 → 部件']
-const APP_VERSION = '0.3.5'
+const APP_VERSION = '0.3.6'
 function saveJson(value, name) {
   const blob = new Blob([JSON.stringify(value, null, 2)], {type: 'application/json'}), url = URL.createObjectURL(blob)
   const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
@@ -83,15 +83,15 @@ export function Workflow({onPreview}) {
       setSplit({...imageDefaults(sm),...(isImageSize(p.draft?.splitSize,sm)?{size:p.draft.splitSize}:{}),...(IMAGE_MODEL_INFO[sm].quality.includes(p.draft?.splitQuality)?{quality:p.draft.splitQuality}:{})})
       setWholeAsset(p.assets.some(a=>a.id===p.draft?.wholeAsset)?p.draft.wholeAsset:'');setSheetAsset(p.assets.some(a=>a.id===p.draft?.sheetAsset)?p.draft.sheetAsset:p.assets.some(a=>a.id===p.draft?.wholeAsset)?p.draft.wholeAsset:'');setGenMode(p.draft?.genMode==='image'?'image':'text');setUsage(null)
       const mv=MODEL_VERSIONS.includes(p.draft?.modelVersion)?p.draft.modelVersion:MODEL_VERSIONS[0]
-      const old=mv==='v2.5-20250123'
-      const g=!old&&p.draft?.modelGeometry==='detailed'?'detailed':'standard'
+      const old=mv==='v2.5-20250123',ps=isPSeries(mv)
+      const g=!old&&!ps&&p.draft?.modelGeometry==='detailed'?'detailed':'standard'
       const opts={...defaultModelOptions,texture:p.draft?.modelTexture!=='false',pbr:p.draft?.modelTexture!=='false'&&p.draft?.modelPbr!=='false',
         textureQuality:['standard','detailed','extreme'].includes(p.draft?.modelTextureQuality)?p.draft.modelTextureQuality:'standard',
-        quad:!old&&p.draft?.modelQuad==='true',smart:!old&&p.draft?.modelSmart==='true',autoSize:!old&&p.draft?.modelAutoSize==='true',
+        quad:!old&&p.draft?.modelQuad==='true',smart:!old&&!ps&&p.draft?.modelSmart==='true',autoSize:!old&&p.draft?.modelAutoSize==='true',
         autofix:p.draft?.modelAutofix==='true',textureAlignment:p.draft?.modelTextureAlignment==='geometry'?'geometry':'original_image',orientation:p.draft?.modelOrientation==='align_image'?'align_image':'default',
         exportOrientation:EXPORT_ORIENTATIONS.includes(p.draft?.modelExportOrientation)?p.draft.modelExportOrientation:''}
       setModelVersion(mv);setGeometry(g);setModelOptions(opts)
-      setFaceLimit(Math.min(modelFaceMax(mv,{quad:opts.quad,smart:opts.smart,geometry:g}),Math.max(500,Number(p.draft?.modelFaceLimit)||50000)))
+      setFaceLimit(Math.min(modelFaceMax(mv,{quad:opts.quad,smart:opts.smart,geometry:g}),Math.max(modelFaceMin(mv),Number(p.draft?.modelFaceLimit)||50000)))
       setPart(p.draft?.partName || '头发'); setPriority(p.draft?.partPriority || 'high')
       setSheetPromptText(p.draft?.splitSheetPrompt||null);setPartPromptText(p.draft?.splitPartPrompt||null);setCropOrigin('')
       try { localStorage.setItem('tripo-studio-project', id) } catch { /* storage may be unavailable */ }

@@ -2,7 +2,14 @@
 import {promptCap} from './prompt-policy.js'
 import {IMAGE_MODELS,IMAGE_SIZES,IMAGE_MODEL_INFO,isImageSize,modelAvailable} from './image-models.js'
 export {IMAGE_MODELS,IMAGE_SIZES} from './image-models.js'
-export const MODEL_VERSIONS = ['v3.1-20260211', 'v3.0-20250812', 'v2.5-20250123']
+// 0.3.6 REQ-079: official P series (智能网格 / Smart Mesh) on the same POST /generation/image-to-model endpoint.
+// P2-20260801 = P2.0 (CN docs: 新一代 P 系列，支持四边面输出; marked preview). H series stays the default (index 0).
+export const H_MODEL_VERSIONS = ['v3.1-20260211', 'v3.0-20250812', 'v2.5-20250123']
+export const P_MODEL_VERSIONS = ['P2-20260801']
+export const MODEL_VERSIONS = [...H_MODEL_VERSIONS, ...P_MODEL_VERSIONS]
+export const isPSeries = model => P_MODEL_VERSIONS.includes(model)
+export const MODEL_VERSION_LABELS = Object.freeze({'P2-20260801': 'P2.0 智能网格（官方 preview）'})
+export const P_SERIES_DOC = 'https://developers.tripo3d.com/zh/docs/generation-image-to-model/p'
 export const MODEL_FORMATS = ['GLTF', 'FBX', 'USDZ', 'OBJ', 'STL', '3MF']
 export const KINDS = ['text-to-image', 'image-to-image', 'image-to-model', 'multiview-to-model', 'model-convert', 'mesh-decimate']
 // 0.3.5 REQ-076: official POST /mesh/decimate (重拓扑 / 减面). v2.0 = smart retopology (30 credits, face_limit optional,
@@ -21,9 +28,12 @@ export const EXPORT_ORIENTATIONS = ['+x', '-x', '-y', '+y']
 export const MULTIVIEW_VIEWS = ['front', 'left', 'back', 'right']
 export const MULTIVIEW_LABELS = Object.freeze({front: '正面', left: '左侧', back: '背面', right: '右侧'})
 export const MODEL_KINDS = ['image-to-model', 'multiview-to-model']
-// Official H-series image-to-model face caps. Quad output is FBX, not GLB.
+// Official image-to-model face caps. H series: quad output is FBX, not GLB.
+// 0.3.6 REQ-079 P2-20260801: triangles 48–50,000, quad=true 48–25,000 (no smart_low_poly / geometry_quality).
+export function modelFaceMin(model) { return isPSeries(model) ? 48 : 500 }
 export function modelFaceMax(model, {quad = false, smart = false, geometry = 'standard'} = {}) {
   if (!MODEL_VERSIONS.includes(model)) return 0
+  if (isPSeries(model)) return quad ? 25000 : 50000
   if (smart) return quad ? 10000 : 20000
   if (quad) return 150000
   if (model === 'v2.5-20250123') return 500000
@@ -163,7 +173,8 @@ export function normalizeViews(views) {
   if (new Set(ids).size !== ids.length) fail('同一张图不能用于多个视角')
   return out
 }
-// Shared H-series geometry/texture contract of image-to-model and multiview-to-model (same official caps).
+// Shared geometry/texture contract of image-to-model and multiview-to-model (same official caps).
+// 0.3.6 REQ-079: P series (P2-20260801) follows the official P doc — no geometry_quality, no smart_low_poly.
 function modelParams(raw, {autofix}) {
   const model = pick(raw.model ?? MODEL_VERSIONS[0], MODEL_VERSIONS, '3D 模型版本')
   for (const k of ['texture', 'pbr', 'quad', 'auto_size', 'smart_low_poly', ...(autofix ? ['enable_image_autofix'] : [])])
@@ -171,21 +182,23 @@ function modelParams(raw, {autofix}) {
   const texture = raw.texture ?? true, pbr = raw.pbr ?? true
   const quad = raw.quad ?? false, smart = raw.smart_low_poly ?? false
   if (!texture && pbr) fail('PBR 需要启用贴图')
-  const old = model === 'v2.5-20250123'
+  const old = model === 'v2.5-20250123', pSeries = isPSeries(model)
   if (old && (quad || smart || raw.auto_size || raw.geometry_quality !== undefined || raw.texture_quality !== undefined))
     fail('v2.5 不支持高级质量、四边面、智能低面数或自动尺寸')
-  const geometry = old ? 'standard' : pick(raw.geometry_quality ?? 'standard', ['standard', 'detailed'], '几何质量')
+  if (pSeries && (raw.geometry_quality !== undefined || smart))
+    fail('P2.0 智能网格不支持几何质量（Ultra）或智能低面数参数（官方 P 系列文档）')
+  const geometry = old || pSeries ? 'standard' : pick(raw.geometry_quality ?? 'standard', ['standard', 'detailed'], '几何质量')
   const face_limit = raw.face_limit ?? 50000
-  const max = modelFaceMax(model, {quad, smart, geometry})
-  if (!Number.isInteger(face_limit) || face_limit < 500 || face_limit > max) fail(`此模型/拓扑目标面数须为 500–${max} 的整数`)
+  const min = modelFaceMin(model), max = modelFaceMax(model, {quad, smart, geometry})
+  if (!Number.isInteger(face_limit) || face_limit < min || face_limit > max) fail(`此模型/拓扑目标面数须为 ${min}–${max} 的整数`)
   if (!texture && raw.texture_quality !== undefined) fail('关闭贴图时不能选择贴图质量')
   const params = {model, face_limit, texture, pbr}
   if (!old) {
-    params.geometry_quality = geometry
+    if (!pSeries) params.geometry_quality = geometry
     params.quad = quad
     if (texture && raw.texture_quality !== undefined) params.texture_quality = pick(raw.texture_quality, ['standard', 'detailed', 'extreme'], '贴图质量')
     if (raw.auto_size !== undefined) params.auto_size = raw.auto_size
-    if (raw.smart_low_poly !== undefined) params.smart_low_poly = smart
+    if (!pSeries && raw.smart_low_poly !== undefined) params.smart_low_poly = smart
   }
   if (autofix && raw.enable_image_autofix !== undefined) params.enable_image_autofix = raw.enable_image_autofix
   if (raw.texture_alignment !== undefined) params.texture_alignment = pick(raw.texture_alignment, ['original_image', 'geometry'], '贴图对齐')

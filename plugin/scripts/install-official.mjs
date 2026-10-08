@@ -33,7 +33,7 @@ export async function runOfficial({uninstall = false, argv = process.argv} = {})
   if (!ours) throw new Error(`官方 profile 中已存在其他来源的 ${PACKAGE}（${current}），需人工确认，未覆盖`)
   const dataDirectory = resolveDataDirectory()
   if (!uninstall) {
-    for (const file of ['lib/client-v0.3.5.js', 'server/routes.js', 'shared/contracts.js', 'shared/host-paths.js', 'cordis.patch.yml']) if (!fs.existsSync(path.join(source, file))) throw new Error(`发布闭包缺失：${file}`)
+    for (const file of ['lib/client-v0.3.6.js', 'server/routes.js', 'shared/contracts.js', 'shared/host-paths.js', 'cordis.patch.yml']) if (!fs.existsSync(path.join(source, file))) throw new Error(`发布闭包缺失：${file}`)
     if (inside(dataDirectory, installed) || inside(installed, dataDirectory) || inside(dataDirectory, source)) throw new Error('用户数据目录与插件目录重叠，已停止以免覆盖项目数据')
   }
   const meta = JSON.parse(fs.readFileSync(path.join(source, 'package.json'), 'utf8'))

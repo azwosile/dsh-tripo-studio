@@ -56,7 +56,7 @@ plugin/client-src/workflow-styles.js
 plugin/client-src/workflow.jsx
 plugin/cordis.patch.yml
 plugin/index.js
-plugin/lib/client-v0.3.5.js
+plugin/lib/client-v0.3.6.js
 plugin/package-lock.json
 plugin/package.json
 plugin/scripts/build-client.mjs
@@ -78,6 +78,7 @@ plugin/scripts/test-v032.mjs
 plugin/scripts/test-v033.mjs
 plugin/scripts/test-v034.mjs
 plugin/scripts/test-v035.mjs
+plugin/scripts/test-v036.mjs
 plugin/scripts/uninstall-local.mjs
 plugin/server/config.js
 plugin/server/credentials.js
@@ -120,6 +121,7 @@ plugin/tests/v030-upgrade.test.mjs
 plugin/tests/v033-unified.test.mjs
 plugin/tests/v034-multiview.test.mjs
 plugin/tests/v035-retopo.test.mjs
+plugin/tests/v036-p2.test.mjs
 tools/package_release.py
 tools/release-files.txt
 tools/verify_release.py

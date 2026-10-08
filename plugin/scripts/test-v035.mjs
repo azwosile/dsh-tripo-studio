@@ -10,7 +10,7 @@ import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 import {JobService} from '../server/service.js'
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..')
-const out=path.resolve(root,'..','validation','v0.3.5');fs.mkdirSync(out,{recursive:true})
+const out=path.resolve(root,'..','validation','v0.3.6');fs.mkdirSync(out,{recursive:true})
 const png=fs.readFileSync(path.join(root,'tests','fixtures','reference.png'))
 const glb=Buffer.alloc(20);glb.write('glTF');glb.writeUInt32LE(2,4);glb.writeUInt32LE(glb.length,8)
 const checks=[];const check=(name,ok,detail='')=>{checks.push({name,ok:Boolean(ok),...(detail?{detail}:{})});console.log(`${ok?'PASS':'FAIL'} ${name}${detail?` — ${detail}`:''}`)}
@@ -25,7 +25,7 @@ const gen=service.prepare(p.id,{kind:'image-to-model',label:'头发3D',priority:
 Object.assign(s.job(p.id,gen.id),{status:'success',taskId:TASK,progress:100,downloadStatus:'downloaded'})
 const model=s.addAsset(p.id,glb,{kind:'model',label:'头发3D',sourceJobId:gen.id});s.job(p.id,gen.id).assetIds=[model.id];s.save()
 const router=hostRouter(createHandler({service}))
-const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.5.js',['lib/client-v0.3.5.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
+const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.6.js',['lib/client-v0.3.6.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
 const server=http.createServer((req,res)=>{const route=router.match(req.url);if(route)return route.handler(req,res);const file=allowed.get(new URL(req.url,'http://localhost').pathname);if(!file){res.statusCode=404;return res.end()}res.setHeader('content-type',file[1]);res.end(fs.readFileSync(path.join(root,file[0])))})
 await new Promise(r=>server.listen(0,'127.0.0.1',r))
 const base=`http://127.0.0.1:${server.address().port}`,errors=[],external=[]
@@ -37,7 +37,7 @@ try {
  await page.route('**/*',route=>{const u=route.request().url();if(/^https?:/.test(u)&&!u.startsWith(base+'/')){external.push(u);return route.abort()}return route.continue()})
  await page.goto(base+'/scripts/preview.html');await expect(page.locator('.tw-steps')).toBeVisible()
  const upgrade=page.locator('.tw-upgrade');if(await upgrade.count())await upgrade.getByRole('button',{name:'知道了'}).click()
- check('UI: header shows 0.3.5',await page.locator('.tw-brand').innerText().then(t=>t.includes('0.3.5')))
+ check('UI: header shows 0.3.6',await page.locator('.tw-brand').innerText().then(t=>t.includes('0.3.6')))
  await page.locator('.tw-steps button').nth(2).click()
  const panel=page.getByLabel('重拓扑',{exact:true});await panel.scrollIntoViewIfNeeded()
  const tips=panel.getByRole('note',{name:'重拓扑官方提示'})

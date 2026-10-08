@@ -15,7 +15,7 @@ import {estimateJobCredits} from '../shared/credit-estimate.js'
 import {toneOf,looksModerated,KIND_LABEL} from '../client-src/model-roles.js'
 import {guessViews} from '../client-src/multiview.js'
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..')
-const out=path.resolve(root,'..','validation','v0.3.5');fs.mkdirSync(out,{recursive:true})
+const out=path.resolve(root,'..','validation','v0.3.6');fs.mkdirSync(out,{recursive:true})
 const png=fs.readFileSync(path.join(root,'tests','fixtures','reference.png'))
 const checks=[];const check=(name,ok,detail='')=>{checks.push({name,ok:Boolean(ok),...(detail?{detail}:{})});console.log(`${ok?'PASS':'FAIL'} ${name}${detail?` — ${detail}`:''}`)}
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'tripo-v034-e2e-'))
@@ -60,7 +60,7 @@ try {
  const failed=service.prepare(p.id,{kind:'image-to-image',label:'角色拆件图',priority:'normal',params:{model:'chat_image_2.5_sunburst',size:'1024x1536',quality:'low',prompt:'x',input_asset:sheet.id}})
  Object.assign(s.job(p.id,failed.id),{status:'failed',error:'Your request was rejected by the safety system.',errorCode:'2010'});s.save()
  const router=hostRouter(createHandler({service}))
- const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.5.js',['lib/client-v0.3.5.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
+ const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.6.js',['lib/client-v0.3.6.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
  const server=http.createServer((req,res)=>{const route=router.match(req.url);if(route)return route.handler(req,res);const file=allowed.get(new URL(req.url,'http://localhost').pathname);if(!file){res.statusCode=404;return res.end()}res.setHeader('content-type',file[1]);res.end(fs.readFileSync(path.join(root,file[0])))})
  await new Promise(r=>server.listen(0,'127.0.0.1',r))
  const base=`http://127.0.0.1:${server.address().port}`,errors=[],external=[]

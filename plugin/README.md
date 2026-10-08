@@ -1,3 +1,13 @@
+# dsh-tripo-studio 0.3.6 — P2.0 智能网格模型
+
+- 源码/构建 **0.3.6**（2026-10-08）；安装状态以仓库根 README 为准。GUI及真实API未验收。
+- 「Tripo 几何模型」新增官方 P 系列 `P2-20260801`（「P2.0 智能网格（官方 preview）」，官方标注 preview 版），图生3D与多视图生3D均可选，接口不变；默认仍为 v3.1。[官方文档](https://developers.tripo3d.com/zh/docs/generation-image-to-model/p)
+- 选P2.0时：面数可留空自适应，或三角48–50000／原生四边面48–25000；不发送P系列不支持的 `geometry_quality`、`smart_low_poly`（超清几何禁用、智能低模隐藏）；面板附官方说明。
+- 参考积分：P2.0 无贴图100／标准贴图110（官方P系列价表）；高清/8K贴图组合不估价。未加入P1。
+- 入口 `lib/client-v0.3.6.js`，无新依赖。Windows单元170/170、`npm run test:v036` 12/12、全部历史浏览器回归通过；模拟供应商，未调用真实API。
+
+---
+
 # dsh-tripo-studio 0.3.5 — 重拓扑（附官方提示）、导出朝向
 
 - 源码/构建 **0.3.5**（2026-10-02）；安装状态以仓库根 README 为准。GUI及真实API未验收。

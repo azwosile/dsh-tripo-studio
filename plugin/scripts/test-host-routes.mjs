@@ -33,7 +33,7 @@ try{
  assert.equal(server.match('/dsh-tripo-studio-evil/status'),undefined)
  response=await fetch(base+'/dsh-tripo-studio/status',{headers:{'x-tripo-studio':'1'}})
  assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/application\/json/)
- const status=await response.json();assert.equal(status.version,'0.3.5');assert.equal(status.keyConfigured,false);assert.equal(status.paidEnabled,false)
+ const status=await response.json();assert.equal(status.version,'0.3.6');assert.equal(status.keyConfigured,false);assert.equal(status.paidEnabled,false)
  assert.equal(status.site,'cn');assert.equal(status.apiBase,'https://openapi.tripo3d.com/v3')
  assert.match(status.csrfToken,/^[a-f0-9]{64}$/)
  console.log('PASS: fixed plugin status reaches real handler without any API key')

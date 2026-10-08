@@ -1,6 +1,6 @@
 {
-  "date": "2026-10-02",
-  "plugin_version": "0.3.5",
+  "date": "2026-10-08",
+  "plugin_version": "0.3.6",
   "environment": {
     "os": "Windows (source workspace, isolated test data)",
     "node": "24.19.0",
@@ -13,7 +13,7 @@
   "results": [
     {
       "command": "npm test",
-      "passed": 164,
+      "passed": 170,
       "failed": 0,
       "skipped": 0
     },
@@ -32,6 +32,12 @@
     {
       "command": "npm run test:compat",
       "passed": 34,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "npm run test:v036",
+      "passed": 12,
       "failed": 0,
       "skipped": 0
     },
@@ -114,7 +120,7 @@
     "native DSH GUI",
     "Windows DPAPI with real key",
     "native Windows folder picker",
-    "real provider API (balance/usage/generation/multiview/convert/mesh decimate)"
+    "real provider API (balance/usage/generation incl. P2.0/multiview/convert/mesh decimate)"
   ],
-  "scope": "0.3.5 development-round run on the Windows source workspace with a mock provider; not a penetration test or provider compatibility certification."
+  "scope": "0.3.6 development-round run on the Windows source workspace with a mock provider; not a penetration test or provider compatibility certification."
 }

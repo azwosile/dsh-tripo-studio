@@ -11,7 +11,7 @@ import {JobService} from '../server/service.js'
 import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const evidence = path.join(root, '..', 'validation','v0.3.5'); fs.mkdirSync(evidence, {recursive: true})
+const evidence = path.join(root, '..', 'validation','v0.3.6'); fs.mkdirSync(evidence, {recursive: true})
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'tripo-ui-test-'))
 const fixture = fs.readFileSync(path.join(root, 'tests/fixtures/reference.png'))
 function triangleGlb() {
@@ -35,7 +35,7 @@ const storageManager=new ProjectLocation(service.store.directory,{picker:async()
 const handler = createHandler({service,storageManager})
 const allowed = new Map([
   ['/scripts/preview.html',['scripts/preview.html','text/html']],
-  ['/lib/client-v0.3.5.js',['lib/client-v0.3.5.js','text/javascript']],
+  ['/lib/client-v0.3.6.js',['lib/client-v0.3.6.js','text/javascript']],
   ['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],
   ['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']],
 ])
@@ -198,7 +198,7 @@ try {
   await page.setViewportSize({width:390,height:844})
   await page.screenshot({path:path.join(evidence,'workflow-mobile.png'),fullPage:true})
   check('390px layout has no horizontal overflow',await page.evaluate(()=>{const el=document.querySelector('.tw-root');return el.scrollWidth<=el.clientWidth+1&&document.documentElement.scrollWidth<=innerWidth+1}))
-  await page.goto(pathToFileURL(path.join(root,'..','Tripo-Studio-Workbench-v0.3.5.html')).href)
+  await page.goto(pathToFileURL(path.join(root,'..','Tripo-Studio-Workbench-v0.3.6.html')).href)
   await page.getByRole('tab',{name:'3D 预览',exact:true}).click()
   await expect(page.locator('.tps-stage canvas')).toHaveCount(1)
   check('single-file offline preview mounts without any network dependency',true)

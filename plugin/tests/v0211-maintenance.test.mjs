@@ -107,5 +107,5 @@ test('public H pricing respects texture exclusivity, geometry, topology and unkn
  assert.equal(modelPriceReference('v3.0-20250812','standard',{...base,texture:false,textureQuality:'extreme'}),20)
  assert.equal(modelPriceReference('v3.1-20260211','detailed',{...base,textureQuality:'extreme',quad:true,smart:true}),85)
  assert.equal(modelPriceReference('v3.1-20260211','standard',{...base,textureQuality:'detailed'}),40)
- assert.equal(modelPriceReference('v2.5-20250123','standard',base),null);assert.equal(MODEL_PRICE_ROWS.length,9)
+ assert.equal(modelPriceReference('v2.5-20250123','standard',base),null);assert.equal(MODEL_PRICE_ROWS.length,11)
 })

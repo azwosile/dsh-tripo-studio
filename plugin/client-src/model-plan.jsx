@@ -1,6 +1,6 @@
 import React from 'react'
 import {ModelPriceTips} from './model-price-tips.jsx'
-import {MODEL_VERSIONS,MODEL_FORMATS,modelFaceMax} from '../shared/contracts.js'
+import {MODEL_VERSIONS,MODEL_FORMATS,MODEL_VERSION_LABELS,P_SERIES_DOC,isPSeries,modelFaceMax,modelFaceMin} from '../shared/contracts.js'
 import {ImageTile,RenameButton} from './image-card.jsx'
 import {MODEL_ROLES,ROLE_ORDER,roleOf,planModelTasks,SHEET_TONE,toneOf} from './model-roles.js'
 import {MultiviewPlan} from './multiview-plan.jsx'
@@ -19,7 +19,7 @@ export function RoleLegend() {
 }
 export function ModelPlan({images,jobs=[],onZoom,onRename,sheetAsset,onSheet,checked,setChecked,modelVersion,setModelVersion,faceLimit,setFaceLimit,geometry,setGeometry,options,setOptions,convertJobs,busy,canPay,onSave,onPrepare,onPriority,part='canvas'}) {
  const [convertJob,setConvertJob]=React.useState(''),[convertFormat,setConvertFormat]=React.useState('FBX'),[convertQuad,setConvertQuad]=React.useState(false),[convertOrientation,setConvertOrientation]=React.useState('')
- const old=modelVersion==='v2.5-20250123'
+ const old=modelVersion==='v2.5-20250123',pSeries=isPSeries(modelVersion),faceMin=modelFaceMin(modelVersion)
  const cap=modelFaceMax(modelVersion,{quad:options.quad,smart:options.smart,geometry})
  const update=(key,value)=>{
   const next={...options,[key]:value}
@@ -29,14 +29,17 @@ export function ModelPlan({images,jobs=[],onZoom,onRename,sheetAsset,onSheet,che
  }
  const selectModel=value=>{
   setModelVersion(value)
-  if(value==='v2.5-20250123'){setGeometry('standard');setOptions({...options,quad:false,smart:false,autoSize:false,textureQuality:'standard'})}
-  setFaceLimit(Math.min(faceLimit,modelFaceMax(value,{quad:value==='v2.5-20250123'?false:options.quad,smart:value==='v2.5-20250123'?false:options.smart,geometry:value==='v2.5-20250123'?'standard':geometry})))
+  // 0.3.6 REQ-079: P2.0 has no geometry_quality / smart_low_poly; its face range is 48–50,000 (quad 48–25,000).
+  const legacy=value==='v2.5-20250123',p=isPSeries(value)
+  const next=legacy?{...options,quad:false,smart:false,autoSize:false,textureQuality:'standard'}:p?{...options,smart:false}:options
+  if(legacy||p){setGeometry('standard');setOptions(next)}
+  setFaceLimit(Math.max(modelFaceMin(value),Math.min(faceLimit,modelFaceMax(value,{quad:next.quad,smart:next.smart,geometry:legacy||p?'standard':geometry}))))
  }
  const params=id=>({
   input_asset:id,model:modelVersion,face_limit:faceLimit,texture:options.texture,pbr:options.pbr,enable_image_autofix:options.autofix,
   ...(options.texture?{texture_alignment:options.textureAlignment,orientation:options.orientation}:{}),
   ...(options.exportOrientation?{export_orientation:options.exportOrientation}:{}),
-  ...(!old?{geometry_quality:geometry,quad:options.quad,auto_size:options.autoSize,smart_low_poly:options.smart,...(options.texture?{texture_quality:options.textureQuality}:{})}:{})
+  ...(!old?{...(pSeries?{}:{geometry_quality:geometry}),quad:options.quad,auto_size:options.autoSize,...(pSeries?{}:{smart_low_poly:options.smart}),...(options.texture?{texture_quality:options.textureQuality}:{})}:{})
  })
  // 0.3.3 REQ-067: one plan, one review. 次要 parts share a single task on the split sheet; 主要/基准 are one task each.
  const plan=planModelTasks({images,jobs,checked,sheetAsset})
@@ -67,19 +70,20 @@ export function ModelPlan({images,jobs=[],onZoom,onRename,sheetAsset,onSheet,che
   <div className="tw-insp-body">
   <h3 className="tw-insp-title">建模参数</h3>
   <ModelPriceTips model={modelVersion} geometry={geometry} options={options}/>
-  <div className="tw-fields tw-model-fields"><label>Tripo 几何模型<select aria-label="Tripo 几何模型" value={modelVersion} onChange={e=>selectModel(e.target.value)}>{MODEL_VERSIONS.map(v=><option key={v} value={v}>{v}{v.startsWith('v2.5')?' · 旧版部分高级参数不支持':''}</option>)}</select></label>
-   <label>目标面数<input aria-label="目标面数" type="number" min="500" max={cap} step="500" value={faceLimit} onChange={e=>setFaceLimit(Number(e.target.value))}/><small>当前模型/拓扑范围 500–{cap.toLocaleString()}</small></label>
-   <label>几何质量<select aria-label="几何质量" value={geometry} disabled={old} onChange={e=>{setGeometry(e.target.value);setFaceLimit(Math.min(faceLimit,modelFaceMax(modelVersion,{quad:options.quad,smart:options.smart,geometry:e.target.value})))}}><option value="standard">标准</option><option value="detailed">精细 / Ultra（积分以官方结算为准）</option></select></label>
-   <label>网格拓扑<select aria-label="网格拓扑" value={options.quad?'quad':'tri'} disabled={old} onChange={e=>update('quad',e.target.value==='quad')}><option value="tri">三角面 · 默认 GLB</option><option value="quad">四边面 · 官方强制 FBX</option></select></label>
+  <div className="tw-fields tw-model-fields"><label>Tripo 几何模型<select aria-label="Tripo 几何模型" value={modelVersion} onChange={e=>selectModel(e.target.value)}>{MODEL_VERSIONS.map(v=><option key={v} value={v}>{v}{v.startsWith('v2.5')?' · 旧版部分高级参数不支持':MODEL_VERSION_LABELS[v]?` · ${MODEL_VERSION_LABELS[v]}`:''}</option>)}</select></label>
+   <label>目标面数<input aria-label="目标面数" type="number" min={faceMin} max={cap} step={pSeries?1:500} value={faceLimit} onChange={e=>setFaceLimit(Number(e.target.value))}/><small>当前模型/拓扑范围 {faceMin}–{cap.toLocaleString()}</small></label>
+   <label>几何质量<select aria-label="几何质量" value={geometry} disabled={old||pSeries} onChange={e=>{setGeometry(e.target.value);setFaceLimit(Math.min(faceLimit,modelFaceMax(modelVersion,{quad:options.quad,smart:options.smart,geometry:e.target.value})))}}><option value="standard">标准</option><option value="detailed">精细 / Ultra（积分以官方结算为准）</option></select></label>
+   <label>网格拓扑<select aria-label="网格拓扑" value={options.quad?'quad':'tri'} disabled={old} onChange={e=>update('quad',e.target.value==='quad')}><option value="tri">三角面 · 默认 GLB</option><option value="quad">{pSeries?'四边面 · P2 原生四边面（48–25,000）':'四边面 · 官方强制 FBX'}</option></select></label>
    <label>贴图<select aria-label="贴图" value={options.texture?'on':'off'} onChange={e=>update('texture',e.target.value==='on')}><option value="on">生成贴图</option><option value="off">无贴图纯几何体</option></select></label>
    <label><input type="checkbox" aria-label="PBR 材质" checked={options.pbr} disabled={!options.texture} onChange={e=>update('pbr',e.target.checked)}/>启用 PBR 材质（需要贴图）</label>
    {!old&&options.texture&&<label>贴图质量<select aria-label="贴图质量" value={options.textureQuality} onChange={e=>update('textureQuality',e.target.value)}><option value="standard">标准</option><option value="detailed">精细</option><option value="extreme">8K · 极致（可能额外消耗积分）</option></select></label>}
    <label><input type="checkbox" aria-label="生成前优化参考图" checked={options.autofix} onChange={e=>update('autofix',e.target.checked)}/>生成前自动优化参考图</label>
    {options.texture&&<><label>贴图优先级<select aria-label="贴图优先级" value={options.textureAlignment} onChange={e=>update('textureAlignment',e.target.value)}><option value="original_image">参考图颜色</option><option value="geometry">几何体贴合</option></select></label><label>模型朝向<select aria-label="模型朝向" value={options.orientation} onChange={e=>update('orientation',e.target.value)}><option value="default">自动朝向</option><option value="align_image">对齐参考图视角</option></select></label></>}
    <OrientationSelect label="导出前向轴（export_orientation）" value={options.exportOrientation||''} onChange={v=>update('exportOrientation',v)} tip={ORIENTATION_GEN_TIP}/>
-   {!old&&<><label><input type="checkbox" aria-label="自动真实尺寸" checked={options.autoSize} onChange={e=>update('autoSize',e.target.checked)}/>自动缩放至真实尺寸（米）</label><label><input type="checkbox" aria-label="智能低面数" checked={options.smart} onChange={e=>update('smart',e.target.checked)}/>智能低面数（复杂输入可能失败）</label></>}
+   {!old&&<><label><input type="checkbox" aria-label="自动真实尺寸" checked={options.autoSize} onChange={e=>update('autoSize',e.target.checked)}/>自动缩放至真实尺寸（米）</label>{!pSeries&&<label><input type="checkbox" aria-label="智能低面数" checked={options.smart} onChange={e=>update('smart',e.target.checked)}/>智能低面数（复杂输入可能失败）</label>}</>}
   </div>
   <p className="tw-note">H 系列公开参数：四边面直接得到 FBX，浏览器预览会三角化，仅原始 FBX 可保留四边拓扑。自动尺寸、贴图质量及 Ultra 可能改变收费；实际费用以云端账户结算为准。<a href="https://developers.tripo3d.com/zh/docs/generation-image-to-model/standard" target="_blank" rel="noopener noreferrer">官方图生3D参数</a></p>
+  {pSeries&&<p className="tw-note tw-official-inline" role="note" aria-label="P2.0 官方说明">P2.0 智能网格（P2-20260801，官方标注 preview）：同一图生3D接口，针对低面数与干净拓扑；面数 三角面 48–50,000、四边面 48–25,000，官方建议简单模型 ≥150、复杂模型 ≥250；不支持几何质量（Ultra）与智能低面数。参考积分 无贴图 100 / 标准贴图 110，以账户结算为准。<a href={P_SERIES_DOC} target="_blank" rel="noopener noreferrer">官方 P 系列参数</a></p>}
   <button disabled={busy} onClick={onSave}>保存建模计划</button>
   <section className="tw-convert" aria-label="模型格式转换"><h3>④ 已完成模型 → 其他格式（独立收费转换）</h3><p>图生3D接口不提供任意输出格式开关。此处使用官方 /models/convert 新建另一笔云任务，必须另行审阅并确认；不会自动在生成后转换。GLTF须自包含，OBJ/STL等可能丢失贴图或动画，USDZ/3MF目前只支持下载。</p>
     <label>原模型任务<select aria-label="转换来源任务" value={convertJob} onChange={e=>setConvertJob(e.target.value)}><option value="">选择已成功的国内站3D任务</option>{convertJobs.map(j=><option key={j.id} value={j.id}>{j.label} · {j.taskId}</option>)}</select></label>
