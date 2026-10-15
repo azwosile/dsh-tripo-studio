@@ -7,3 +7,7 @@
 *.md text eol=lf
 *.yml text eol=lf
 *.png -text
+*.txt text eol=lf
+*.html text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf

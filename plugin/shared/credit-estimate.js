@@ -1,5 +1,6 @@
 // 0.3.3 REQ-071: reference credits from the public tables already shipped in image-models.js / model-pricing.js.
 // This is an estimate for the approval dialog, never an account quote; unknown combinations return null.
+import {TRIPO_SITE} from './site.js'
 import {IMAGE_MODEL_INFO} from './image-models.js'
 import {modelPriceReference} from './model-pricing.js'
 
@@ -19,6 +20,7 @@ export function imagePriceRow(model, quality = 'low') {
   return info.quality.includes(quality) ? table : info.price
 }
 export function estimateJobCredits(job) {
+  if ((job?.site??TRIPO_SITE)==='international') return null // CN reference tables are not international quotes.
   const p = job?.params ?? {}
   if (job?.kind === 'text-to-image' || job?.kind === 'image-to-image') {
     const row = imagePriceRow(p.model, p.quality), tier = imageTier(p.size, p.model)

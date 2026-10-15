@@ -1,6 +1,7 @@
 import https from 'node:https'
 import {validTaskId} from '../shared/task-id.js'
-import {TRIPO_API_BASE,TRIPO_ENDPOINTS} from '../shared/image-models.js'
+import {TRIPO_ENDPOINTS} from '../shared/image-models.js'
+import {siteInfo} from '../shared/site.js'
 import {lookup} from 'node:dns/promises'
 import {isIP} from 'node:net'
 
@@ -13,17 +14,18 @@ export function redact(value, key = '') {
   return text.replace(/Bearer\s+[^\s"']+/gi, 'Bearer [REDACTED]').replace(/\bsk-[\w-]{8,}/g, '[REDACTED]').slice(0, 1200)
 }
 export class TripoClient {
-  constructor({key = process.env.TRIPO_CN_API_KEY ?? '', fetchImpl = globalThis.fetch, sleep = (ms) => new Promise(r => setTimeout(r, ms))} = {}) {
+  constructor({site = 'cn', key = process.env[siteInfo(site).keyEnv] ?? '', fetchImpl = globalThis.fetch, sleep = (ms) => new Promise(r => setTimeout(r, ms))} = {}) {
+    this.site = siteInfo(site).id; this.apiBase = siteInfo(site).apiBase
     this.key = key; this.fetch = fetchImpl; this.sleep = sleep
   }
   async request(path, {method = 'GET', body, form, retries, timeoutMs = 45000, phase = 'request'} = {}) {
-    if (!this.key) throw new TripoError('请在连接设置中保存 Tripo API 密钥（或配置 TRIPO_CN_API_KEY）', {status: 503, code: 'NOT_CONFIGURED', definitive: true})
+    if (!this.key) throw new TripoError('请在连接设置中保存当前站点的 Tripo API 密钥', {status: 503, code: 'NOT_CONFIGURED', definitive: true})
     // Never retry a paid POST. Only GET queries and the free /files upload may pass retries.
     const attempts = retries ?? (method === 'GET' ? 3 : 1)
     for (let i = 0; i < attempts; i++) {
       let response
       try {
-        response = await this.fetch(`${TRIPO_API_BASE}${path}`, {
+        response = await this.fetch(`${this.apiBase}${path}`, {
           method, redirect: 'error', signal: AbortSignal.timeout(timeoutMs),
           headers: {Authorization: `Bearer ${this.key}`, ...(form ? {} : {'Content-Type': 'application/json'})},
           body: form ?? (body ? JSON.stringify(body) : undefined),

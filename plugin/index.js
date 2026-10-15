@@ -11,6 +11,6 @@ export const inject = ['webServer']
 // The data root is host-neutral: see shared/host-paths.js (community + official desktop).
 export function apply(ctx, config = {}) {
   const directory = resolveDataDirectory()
-  const handler = createHandler({directory, manageStorage:true, demoMode: config.demoMode})
+  const handler = createHandler({directory, manageStorage:true, demoMode: config.demoMode, site:config.site??'cn', accessMode:config.accessMode??'local', allowedOrigins:config.allowedOrigins})
   ctx.effect(() => ctx.webServer.register({kind: 'prefix', path: LOCAL_API_PREFIX, handler}), 'tripo-studio: local workflow routes')
 }

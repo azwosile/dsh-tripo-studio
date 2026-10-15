@@ -4,6 +4,7 @@ import {randomBytes, timingSafeEqual} from 'node:crypto'
 import {JobService} from './service.js'
 import {fail, publicJob} from './store.js'
 import {redact} from './tripo.js'
+import {createWebAccess} from './web-access.js'
 
 import {LOCAL_API_PREFIX as PREFIX} from '../shared/local-api.js'
 export function assertLocalRequest(req) {
@@ -30,12 +31,15 @@ function send(res, status, value) {
   res.end(JSON.stringify(value))
 }
 export function createHandler(options) {
+  const accessMode=options.accessMode??'local'
+  if(!['local','web'].includes(accessMode))throw new Error('不支持的访问模式')
+  const web=accessMode==='web'?createWebAccess(options):null
   let instance = options.service
   let activeRequests = 0
   let location=options.storageManager
   const manager=()=>location??=(options.manageStorage?new ProjectLocation(options.directory):null)
   const service = () => instance ??= new JobService({...options,...(manager()?{store:manager().openStore()}: {})})
-  const status=()=>({...service().status(),csrfToken:csrf,...(manager()?{storage:manager().status()}: {})})
+  const status=()=>({...service().status(),csrfToken:csrf,accessMode,...(manager()?{storage:manager().status()}: {})})
   const storageReady=()=>{
     if(!manager())fail('当前环境没有目录选择能力',503,'STORAGE_UNAVAILABLE')
     const s=service()
@@ -49,15 +53,26 @@ export function createHandler(options) {
   return async (req, res) => {
     let active = false
     try {
-      assertLocalRequest(req)
+      if(web)web.origin(req);else assertLocalRequest(req)
       const url = new URL(req.url, 'http://localhost'), method = req.method
       if (!url.pathname.startsWith(`${PREFIX}/`)) fail('路由不存在', 404)
       const route = url.pathname.slice(PREFIX.length)
       // Assets may be loaded by img/a without custom headers. All JSON routes
       // require a non-simple request header; no CORS preflight is enabled.
       if (!route.startsWith('/assets/') && req.headers['x-tripo-studio'] !== '1') fail('缺少本机工作台请求标记', 403)
+      if(web && method==='POST' && route==='/session') return send(res,200,web.login(req,res,await jsonBody(req,2048)))
+      if(web)web.authorize(req)
       if (!['GET', 'HEAD'].includes(method) && !validCsrf(req.headers['x-tripo-csrf'])) fail('CSRF 校验失败，请刷新工作台', 403, 'CSRF_FAILED')
+      if(web && route==='/session' && method==='DELETE') return send(res,200,web.logout(req,res))
+      if(web && ['/storage/choose','/storage/default','/storage'].includes(route))fail('DSH Web 使用服务端配置的数据目录，不支持浏览器选择或切换服务器目录',403,'WEB_STORAGE_FIXED')
       if (method === 'GET' && route === '/status') return send(res, 200, status())
+      if(method==='PUT' && route==='/site') {
+        const body=await jsonBody(req,1024)
+        if(activeRequests)fail('其他任务操作正在进行，请稍后切换站点',409,'SITE_BUSY')
+        service().selectSite(body);csrf=randomBytes(32).toString('hex')
+        return send(res,200,status())
+      }
+      if(!['GET','HEAD'].includes(method) && req.headers['x-tripo-site'] && req.headers['x-tripo-site']!==service().site)fail('站点已改变，请重新连接',409,'SITE_CHANGED')
       if(['/storage/choose','/storage/default'].includes(route)&&method==='POST') {
         storageReady();const body=await jsonBody(req,1024)
         if(!body||Object.keys(body).length)fail('目录选择不接受客户端路径')

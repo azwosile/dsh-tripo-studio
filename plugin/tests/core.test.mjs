@@ -28,14 +28,14 @@ const text = {kind:'text-to-image',params:{prompt:'一个完整成年角色',mod
 
 test('Cordis reproduces old validate crash; fixed Config passes real resolveConfig', () => {
   assert.throws(()=>resolveConfig({Config:{demoMode:{type:'boolean'}}},{}),/validate/)
-  assert.deepEqual(resolveConfig(plugin,{}),{demoMode:false})
-  assert.deepEqual(resolveConfig(plugin,{demoMode:true}),{demoMode:true})
+  assert.deepEqual(resolveConfig(plugin,{}),{demoMode:false,site:'cn',accessMode:'local',allowedOrigins:[]})
+  assert.deepEqual(resolveConfig(plugin,{demoMode:true,site:'cn',accessMode:'local',allowedOrigins:[]}),{demoMode:true,site:'cn',accessMode:'local',allowedOrigins:[]})
   assert.throws(()=>resolveConfig(plugin,{demoMode:'false'}),/demoMode/)
 })
 test('real Cordis context activates and disposes the route, without starting network jobs', async () => {
   const ctx=new Context();let active=0
   ctx.provide('webServer',{register(route){assert.equal(route.kind,'prefix');assert.equal(route.path,'/dsh-tripo-studio');active++;return()=>active--}})
-  const fiber=ctx.plugin(plugin,{demoMode:false})
+  const fiber=ctx.plugin(plugin,{demoMode:false,site:'cn',accessMode:'local',allowedOrigins:[]})
   await new Promise(r=>setTimeout(r,30));assert.equal(active,1)
   fiber.dispose();await new Promise(r=>setTimeout(r,10));assert.equal(active,0)
 })
@@ -61,7 +61,7 @@ test('preparing needs no key or payment; enabling + approval required for submis
   const {service,p,calls}=make(t,{key:'',enabled:false})
   const j=service.prepare(p.id,text)
   assert.equal(j.status,'awaiting_approval');assert.equal(calls.create,0)
-  await assert.rejects(()=>service.submit(p.id,j.id,j.approvalHash),/TRIPO_CN_API_KEY/)
+  await assert.rejects(()=>service.submit(p.id,j.id,j.approvalHash),/NOT_ENABLED|启用收费/)
   await assert.rejects(()=>service.submit(p.id,j.id,'wrong'),/审批/)
 })
 test('concurrent submit and refresh/restart cannot double-submit a paid POST', async t => {

@@ -34,7 +34,7 @@ def validate_name(name: str) -> None:
         raise ValueError(f'Local configuration prohibited: {name}')
     if (p.suffix.lower() in FORBIDDEN_EXTS or re.search(r'\.blend\d*$', low)) and name != FIXTURE:
         raise ValueError(f'Model/image/archive/secret prohibited: {name}')
-    if name.startswith('plugin/lib/') and name != 'plugin/lib/client-v0.3.6.js':
+    if name.startswith('plugin/lib/') and name != 'plugin/lib/client-v0.4.0.js':
         raise ValueError(f'Historical build prohibited: {name}')
 
 def validate_content(name: str, data: bytes) -> None:
@@ -48,7 +48,7 @@ def validate_content(name: str, data: bytes) -> None:
     for index, pattern in enumerate(SECRET_PATTERNS, 1):
         for match in pattern.finditer(data):
             # One reviewed u:p URL in the SSRF rejection test, not a real credential.
-            if index == 4 and name == 'plugin/tests/core.test.mjs' and match[0] == b'https://' + b'u:p@':
+            if index == 4 and name in {'plugin/tests/core.test.mjs','plugin/tests/v040-site-web.test.mjs'} and match[0] == b'https://' + b'u:p@':
                 continue
             raise ValueError(f'Potential secret pattern {index} in {name}; review without printing its value')
 
@@ -89,7 +89,7 @@ def main() -> None:
     try:
         with zipfile.ZipFile(output, 'x', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as z:
             for name, data in sorted(files.items()):
-                info = zipfile.ZipInfo(f'{TOP}/{name}', date_time=(2026, 9, 27, 0, 0, 0))
+                info = zipfile.ZipInfo(f'{TOP}/{name}', date_time=(2026, 10, 15, 0, 0, 0))
                 info.create_system = 3
                 info.external_attr = 0o100644 << 16
                 info.compress_type = zipfile.ZIP_DEFLATED

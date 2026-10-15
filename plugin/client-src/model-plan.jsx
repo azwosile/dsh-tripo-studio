@@ -86,7 +86,7 @@ export function ModelPlan({images,jobs=[],onZoom,onRename,sheetAsset,onSheet,che
   {pSeries&&<p className="tw-note tw-official-inline" role="note" aria-label="P2.0 官方说明">P2.0 智能网格（P2-20260801，官方标注 preview）：同一图生3D接口，针对低面数与干净拓扑；面数 三角面 48–50,000、四边面 48–25,000，官方建议简单模型 ≥150、复杂模型 ≥250；不支持几何质量（Ultra）与智能低面数。参考积分 无贴图 100 / 标准贴图 110，以账户结算为准。<a href={P_SERIES_DOC} target="_blank" rel="noopener noreferrer">官方 P 系列参数</a></p>}
   <button disabled={busy} onClick={onSave}>保存建模计划</button>
   <section className="tw-convert" aria-label="模型格式转换"><h3>④ 已完成模型 → 其他格式（独立收费转换）</h3><p>图生3D接口不提供任意输出格式开关。此处使用官方 /models/convert 新建另一笔云任务，必须另行审阅并确认；不会自动在生成后转换。GLTF须自包含，OBJ/STL等可能丢失贴图或动画，USDZ/3MF目前只支持下载。</p>
-    <label>原模型任务<select aria-label="转换来源任务" value={convertJob} onChange={e=>setConvertJob(e.target.value)}><option value="">选择已成功的国内站3D任务</option>{convertJobs.map(j=><option key={j.id} value={j.id}>{j.label} · {j.taskId}</option>)}</select></label>
+    <label>原模型任务<select aria-label="转换来源任务" value={convertJob} onChange={e=>setConvertJob(e.target.value)}><option value="">选择已成功的当前站点3D任务</option>{convertJobs.map(j=><option key={j.id} value={j.id}>{j.label} · {j.taskId}</option>)}</select></label>
     <label>目标导出格式<select aria-label="目标导出格式" value={convertFormat} onChange={e=>{setConvertFormat(e.target.value);setConvertQuad(false)}}>{MODEL_FORMATS.map(fmt=><option key={fmt} value={fmt}>{fmt}</option>)}</select></label>
     {convertFormat==='FBX'&&<label><input type="checkbox" checked={convertQuad} onChange={e=>setConvertQuad(e.target.checked)}/>转换为四边面 FBX（若需要）</label>}
     {orientationCaveat(convertJobs.find(j=>j.id===convertJob))&&<small className="tw-official-inline" role="alert">{orientationCaveat(convertJobs.find(j=>j.id===convertJob))}</small>}

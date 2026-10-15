@@ -11,14 +11,14 @@ import {CredentialStore} from '../server/credentials.js'
 import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)))
-const evidence=path.join(root,'..','validation','v0.3.6');fs.mkdirSync(evidence,{recursive:true})
+const evidence=path.join(root,'..','validation','v0.4.0');fs.mkdirSync(evidence,{recursive:true})
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'tripo-key-ui-')),secret=randomBytes(32),TEST_KEY='local-test-placeholder-not-a-real-Tripo-key'
 const protector={supported:true,protect:b=>{const iv=randomBytes(12),c=createCipheriv('aes-256-gcm',secret,iv),data=Buffer.concat([c.update(b),c.final()]);return Buffer.concat([iv,c.getAuthTag(),data])},unprotect:b=>{const d=createDecipheriv('aes-256-gcm',secret,b.subarray(0,12));d.setAuthTag(b.subarray(12,28));return Buffer.concat([d.update(b.subarray(28)),d.final()])}}
 let balances=0,submissions=0,queries=0,refreshRequests=0,statusFallback=true
 const vault=new CredentialStore(tmp,{protector})
 const service=new JobService({directory:tmp,key:'',enabled:false,credentialStore:vault,clientFactory:()=>({task:async()=>{queries++;throw Error('legacy task must not query')},balance:async()=>{balances++;return {balance:123,frozen:0}},create:async()=>{submissions++;throw Error('no generation expected')}})})
 const handler=createHandler({service}),allowed=new Map([
- ['/scripts/preview.html','scripts/preview.html'],['/lib/client-v0.3.6.js','lib/client-v0.3.6.js'],
+ ['/scripts/preview.html','scripts/preview.html'],['/lib/client-v0.4.0.js','lib/client-v0.4.0.js'],
  ['/node_modules/react/umd/react.development.js','node_modules/react/umd/react.development.js'],
  ['/node_modules/react-dom/umd/react-dom.development.js','node_modules/react-dom/umd/react-dom.development.js'],
 ])
@@ -42,7 +42,7 @@ try{
  await page.goto(base+'/scripts/preview.html')
  await page.getByRole('button',{name:'连接设置',exact:true}).click()
  await check('fixed China endpoint and credential isolation are explained',async()=>{
-  const settings=page.getByRole('region',{name:'Tripo API 密钥设置'});await expect(settings).toContainText('https://openapi.tripo3d.com/v3');await expect(settings).toContainText('旧国际站密钥');await expect(settings.getByRole('link',{name:'国内站控制台'})).toHaveAttribute('href','https://developers.tripo3d.com/zh/keys')
+  const settings=page.getByRole('region',{name:'Tripo API 密钥设置'});await expect(settings).toContainText('https://openapi.tripo3d.com/v3');await expect(settings).toContainText('两站密钥分别保存');await expect(settings.getByRole('link',{name:'国内站控制台'})).toHaveAttribute('href','https://developers.tripo3d.com/zh/keys')
  })
  const region=page.getByRole('region',{name:'Tripo API 密钥设置'}),key=page.getByLabel('Tripo API 密钥',{exact:true}),save=page.getByRole('button',{name:'保存连接设置',exact:true})
  await check('HTML fallback explains backend failure and safely disables dependent controls',async()=>{

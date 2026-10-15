@@ -1,3 +1,4 @@
+import {siteInfo,TRIPO_SITE} from '../shared/site.js'
 import React from 'react'
 import {ImageEdit,editSpecs} from './image-edit.jsx'
 import {threeViewPrompt,MULTIVIEW_VIEWS,MULTIVIEW_LABELS,EXPORT_ORIENTATIONS} from '../shared/contracts.js'
@@ -25,7 +26,7 @@ import {estimateBatch,estimateJobCredits,formatCredits} from '../shared/credit-e
 
 const STATUS = {awaiting_approval: '等待审批', submitting: '提交中', submission_unknown: '提交结果未知 · 禁止自动重发', queued: '排队中', running: '生成中', success: '云端成功', failed: '失败', cancelled: '云端已取消', discarded: '草稿已丢弃'}
 const STAGES = ['生图定稿', '拆件与裁剪', '统一建模', '交付与导入', '来源 → 部件']
-const APP_VERSION = '0.3.6'
+const APP_VERSION = '0.4.0'
 function saveJson(value, name) {
   const blob = new Blob([JSON.stringify(value, null, 2)], {type: 'application/json'}), url = URL.createObjectURL(blob)
   const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
@@ -43,6 +44,7 @@ function BalanceCheck({balance, estimate, busy, canQuery, onQuery}) {
 }
 export function Workflow({onPreview}) {
   const [connecting, setConnecting] = React.useState(false)
+  const [webAuth,setWebAuth]=React.useState(false),[webToken,setWebToken]=React.useState('')
   const [status, setStatus] = React.useState(null), [projects, setProjects] = React.useState([]), [project, setProject] = React.useState(null)
   const [stage, setStage] = React.useState(0), [prompt, setPrompt] = React.useState('成年角色，全身完整，四肢分开，服装分层清晰，头发与衣服独立，干净浅灰背景，无文字，无水印。')
   const [model, setModel] = React.useState(IMAGE_MODELS[0]), [quality, setQuality] = React.useState('low'), [size, setSize] = React.useState('1024x1536')
@@ -110,14 +112,14 @@ export function Workflow({onPreview}) {
     try {
       const s = await api('/status')
       if (!mounted.current) return
-      csrf.current = s.csrfToken; setStatus(s)
+      csrf.current = s.csrfToken; setStatus(s);setWebAuth(false)
       const ps = await api('/projects')
       if (!mounted.current) return
       setProjects(ps)
       let previous; try { previous = localStorage.getItem('tripo-studio-project') } catch { /* optional */ }
       const id = ps.find(p => p.id === previous)?.id ?? ps[0]?.id
       if (id) await load(id, true)
-    } catch (e) { if (mounted.current) setError(e.message) }
+    } catch (e) { if (mounted.current) {setError(e.message);setWebAuth(e.code==='WEB_AUTH_REQUIRED')} }
     finally { if (mounted.current) setConnecting(false) }
   }, [api, load])
   React.useEffect(() => {
@@ -338,10 +340,10 @@ export function Workflow({onPreview}) {
       <div className="tw-insp-foot"><button onClick={()=>setStage(4)}>查看来源 → 部件</button><button className="tw-primary" onClick={()=>setStage(2)}>检查部件并进入建模 →</button></div>
     </>
     : stage === 2 ? <ModelPlan {...modelPlanProps} part="inspector"/>
-    : stage === 3 ? <div className="tw-insp-body"><h3 className="tw-insp-title">导入已有云端任务</h3><fieldset className="tw-manual-import"><legend>按云端 task_id 手动添加任务</legend><Info>只用当前国内站密钥查询已存在的云端任务并保存到当前项目；不上传、不创建收费任务。若本机已有“提交结果未知”记录，请在该记录中关联恢复，不要重复添加。</Info>
+    : stage === 3 ? <div className="tw-insp-body"><h3 className="tw-insp-title">导入已有云端任务</h3><fieldset className="tw-manual-import"><legend>按云端 task_id 手动添加任务</legend><Info>只用当前站点密钥查询已存在的云端任务并保存到当前项目；不上传、不创建收费任务。若本机已有“提交结果未知”记录，请在该记录中关联恢复，不要重复添加。</Info>
           <label>云端 task_id<input aria-label="手动添加云端 task_id" maxLength={128} value={importId} onChange={e=>{setImportId(e.target.value);setImportConfirm(false)}} placeholder="UUID 或 task_..."/></label>
           <label>任务备注（可选）<input aria-label="手动添加任务备注" maxLength={100} value={importLabel} onChange={e=>setImportLabel(e.target.value)}/></label>
-          <label><input type="checkbox" checked={importConfirm} onChange={e=>setImportConfirm(e.target.checked)}/>确认这是当前国内站账户中已存在的任务，并添加到当前项目</label>
+          <label><input type="checkbox" checked={importConfirm} onChange={e=>setImportConfirm(e.target.checked)}/>确认这是当前站点账户中已存在的任务，并添加到当前项目</label>
           <button disabled={busy||!status?.keyConfigured||!importConfirm||!validTaskId(importId.trim())} onClick={()=>run(async()=>{const j=await api(`/projects/${project.id}/jobs/import`,'POST',{taskId:importId.trim(),confirm:true,label:importLabel});await load(project.id);setImportId('');setImportLabel('');setImportConfirm(false);setLayout({dock:true});setMessage(`已查询并添加云端任务：${j.label}；未创建新收费任务。`)})}>查询并加入当前项目（不发起生成）</button>
         </fieldset><p className="tw-note">任务列表常驻在底部任务坞；刷新只查询，不会重新提交。</p></div>
     : <>
@@ -354,21 +356,24 @@ export function Workflow({onPreview}) {
     </>
   return <div ref={rootRef} className="tw-root tw-studio" data-stage={stage} data-narrow={narrow} data-lib={libPush?"push":drawer?"overlay":"rail"} data-dock={layout.dock ? 'open' : 'closed'}>
     <header className="tw-header tw-appbar">
-      <div className="tw-brand"><strong>Tripo Studio</strong><span className="tw-eyebrow">{APP_VERSION} · 国内站</span></div>
+      <div className="tw-brand"><strong>Tripo Studio</strong><span className="tw-eyebrow">{APP_VERSION} · {siteInfo(TRIPO_SITE).label}</span></div>
       <label className="tw-project-pick"><span>当前项目</span><select aria-label="当前项目" disabled={busy || Boolean(approval)} value={project?.id ?? ''} onChange={e => run(() => load(e.target.value, true))}><option value="" disabled>先创建本地项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
       <button disabled={!status || busy || Boolean(approval)} onClick={() => run(newProject)}>＋ 新建项目</button>
-      <StorageSettings storage={status?.storage} busy={busy||connecting} blocked={Boolean(approval)} api={api} onChanged={storageChanged}/>
+      {status?.accessMode!=='web'&&<StorageSettings storage={status?.storage} busy={busy||connecting} blocked={Boolean(approval)} api={api} onChanged={storageChanged}/>}
       <span className="tw-appbar-spacer"/>
       <span className={`tw-pill ${canPay ? 'ready' : ''}`} title="本地保存 · 无自动付费提交">{canPay ? '● 云端已配置 · 每次须确认' : '○ 本地工作区 · 未启用收费'}</span>
-      {status?.keyConfigured && <button type="button" className="tw-balance-pill" disabled={busy} title="查询 Tripo 国内站账户余额（GET /account/balance，不提交任务）" aria-label={balance ? `账户余额 ${formatCredits(balance.balance)}，冻结 ${formatCredits(balance.frozen)}，点击刷新` : '查询账户余额'} onClick={queryBalance}>{balance ? <>余额 <b>{formatCredits(balance.balance)}</b>{balance.frozen ? <small> · 冻结 {formatCredits(balance.frozen)}</small> : null}</> : '查询余额'}</button>}
+      {status?.keyConfigured && <button type="button" className="tw-balance-pill" disabled={busy} title="查询 Tripo 当前站点账户余额（GET /account/balance，不提交任务）" aria-label={balance ? `账户余额 ${formatCredits(balance.balance)}，冻结 ${formatCredits(balance.frozen)}，点击刷新` : '查询账户余额'} onClick={queryBalance}>{balance ? <>余额 <b>{formatCredits(balance.balance)}</b>{balance.frozen ? <small> · 冻结 {formatCredits(balance.frozen)}</small> : null}</> : '查询余额'}</button>}
       <button className="tw-connect" aria-expanded={settings} onClick={() => setSettings(!settings)}>连接设置</button>
     </header>
     {!status && <section className="tw-settings" aria-label="本机服务连接" aria-busy={connecting}>
       <strong>{window.__TRIPO_OFFLINE__ ? '离线预览 · 无本机服务' : connecting ? '正在连接本机 Tripo 服务…' : '尚未连接本机 Tripo 服务'}</strong>
       <p>密钥输入、收费开关和新建项目需要本机后端连接成功后才能使用；不需要先填写密钥才能连接，也不需要启用收费才能创建本地项目。</p>
+      {webAuth&&<form onSubmit={e=>{e.preventDefault();void run(async()=>{try{await api('/session','POST',{token:webToken});await connect()}finally{setWebToken('')}})}}><label>DSH Web 访问口令（不是 Tripo API Key）<input aria-label="DSH Web 访问口令" type="password" value={webToken} maxLength={512} autoComplete="off" disabled={busy} onChange={e=>setWebToken(e.target.value)}/></label><button disabled={busy||!webToken}>登录工作台</button><p>口令仅用于建立 8 小时 HttpOnly 会话，不写入浏览器存储。请只在可信的专用 HTTPS 站点使用。</p></form>}
       <button disabled={busy || connecting || Boolean(window.__TRIPO_OFFLINE__)} onClick={()=>run(connect)}>重新连接</button>
     </section>}
-    {settings && <CredentialSettings status={status} busy={busy} balance={balance}
+    {status?.accessMode==='web'&&<button disabled={busy} onClick={()=>run(async()=>{await api('/session','DELETE',{});setProject(null);setProjects([]);setStatus(null);csrf.current='';setWebAuth(true)})}>退出 Web 会话</button>}
+    {settings && <CredentialSettings status={status} busy={busy||Boolean(approval)} balance={balance}
+      onSite={site=>run(async()=>{const s=await api('/site','PUT',{site,confirm:true});csrf.current=s.csrfToken;setStatus(s);setApproval(null);setConsent(false);setBalance(null);setUsage(null);setImportConfirm(false);if(project)await load(project.id);setMessage('已切换站点并关闭收费；密钥和云任务分别隔离，请核对当前站点账户。')})}
       onSave={body=>run(async()=>{const next=await api('/credentials','PUT',body);setStatus(prev=>({...prev,...next}));setApproval(null);setConsent(false);setBalance(null);setMessage('连接设置已保存，未提交生成任务；可查询余额验证密钥。')})}
       onClear={()=>run(async()=>{const next=await api('/credentials','DELETE',{confirm:true});setStatus(prev=>({...prev,...next}));setApproval(null);setConsent(false);setBalance(null);setMessage('密钥已清除，收费已关闭；不会自动取消云端任务。')})}
       onBalance={queryBalance} usage={usage} onUsage={project?syncUsage:null}/> }
@@ -403,7 +408,7 @@ export function Workflow({onPreview}) {
       {stage===0&&(genMode==='image'?<button type="button" className="tw-primary" aria-label="吸底快捷：图生图生成（先审阅确认）" disabled={busy||!canPay||!active||!editEffective.trim()} onClick={generateEdit}>图生图 · 生成 · 先确认</button>
         :<button type="button" className="tw-primary" aria-label="吸底快捷：文生图生成一张候选（先审阅确认）" disabled={busy||!canPay} onClick={generateOne}>文生图 · 生成 · 先确认</button>)}
     </div>}
-    {approval && <div className="tw-modal" role="dialog" aria-modal="true" aria-label="收费任务确认"><div className="tw-dialog tw-approval-dialog"><span className="tw-eyebrow">REVIEW BEFORE COMMIT</span><h2>确认 {approval.length} 个独立收费任务</h2><p>图像、3D模型或提示词（依本次参数）将发送至 Tripo 国内站（<code>{TRIPO_API_BASE}</code>）。建模和格式转换分别是独立收费任务，不会自动转换；实际费用按账户结算。四张候选就是四次独立提交。</p>
+    {approval && <div className="tw-modal" role="dialog" aria-modal="true" aria-label="收费任务确认"><div className="tw-dialog tw-approval-dialog"><span className="tw-eyebrow">REVIEW BEFORE COMMIT</span><h2>确认 {approval.length} 个独立收费任务</h2><p>图像、3D模型或提示词（依本次参数）将发送至 Tripo {siteInfo(TRIPO_SITE).label}（<code>{TRIPO_API_BASE}</code>）。建模和格式转换分别是独立收费任务，不会自动转换；实际费用按账户结算。四张候选就是四次独立提交。</p>
       <BalanceCheck balance={balance} estimate={estimateBatch(approval)} busy={busy} canQuery={Boolean(status?.keyConfigured)} onQuery={queryBalance}/>
       <div className="tw-approval-list">{approval.map(d=>{const input=d.params?.input_asset&&images.find(a=>a.id===d.params.input_asset),est=estimateJobCredits(d);return <article key={d.id} data-kind={d.kind}><strong>{d.label} · <span className={`tw-kind-tag kind-${d.kind}`}>{KIND_LABEL[d.kind]||d.kind}</span> <code>{d.kind}</code></strong>
         {input&&<div className="tw-approval-input"><img src={input.url} alt={input.label}/><small>{d.kind==='image-to-image'?'图生图输入图':'建模输入图'}：{input.label}</small></div>}
@@ -411,7 +416,7 @@ export function Workflow({onPreview}) {
         {d.kind==='text-to-image'&&<small className="tw-approval-noinput">文生图：不上传任何图片，只发送提示词。</small>}
         {d.kind==='mesh-decimate'&&<RetopoOfficialTips compact/>}
         {d.params?.export_orientation&&d.kind!=='model-convert'&&<small className="tw-official-inline">{ORIENTATION_GEN_TIP}</small>}
-        <pre>{JSON.stringify(d.params,null,2)}</pre><small>{d.kind==='model-convert'?`格式转换到 ${d.params.format}${d.params.export_orientation?` · 前向轴 ${d.params.export_orientation}`:''} · 新增独立收费任务，不自动触发`:d.kind==='mesh-decimate'?`重拓扑 ${d.params.model} · ${d.params.face_limit?`${d.params.face_limit} 面`:'面数官方自适应'}${d.params.quad?' · 四边面':''} · 新增独立收费任务，不自动触发，原模型不被修改`:d.kind==='multiview-to-model'?`多视图生3D · ${Object.keys(d.params?.views??{}).length} 个视角各自免费上传后合并为 1 个独立收费任务，不自动装配`:d.kind==='image-to-model'?(d.role==='sheet'?`整张拆件图 · 代替 ${d.covers?.length??0} 个次要部件一次建模 · 1 个独立收费任务，不自动拆分或装配`:d.role==='whole'?'整体打底（旧版计划）· 独立收费，未自动装配':`${jobRoleLabel(d)} · 独立收费任务`):priceText(d.params.model,d.params.quality)}<br/>参考积分：{est===null?'未能按公开表估算':`约 ${est}`}<br/>输入哈希：{d.inputHash||'纯文本'}<br/>审批绑定国内站、当前图片、参数与账户；后续改图需重新准备。</small></article>})}</div><label className="tw-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>我已核对上述输入与任务数量，同意数据上传及实际积分扣除。</label><div className="tw-actions"><button disabled={busy} onClick={()=>run(cancelApproval)}>取消并丢弃草稿</button><button className="tw-primary" disabled={!consent||busy||!canPay} onClick={()=>run(confirm)}>确认上传并提交 {approval.length} 个任务</button></div></div></div>}
+        <pre>{JSON.stringify(d.params,null,2)}</pre><small>{d.kind==='model-convert'?`格式转换到 ${d.params.format}${d.params.export_orientation?` · 前向轴 ${d.params.export_orientation}`:''} · 新增独立收费任务，不自动触发`:d.kind==='mesh-decimate'?`重拓扑 ${d.params.model} · ${d.params.face_limit?`${d.params.face_limit} 面`:'面数官方自适应'}${d.params.quad?' · 四边面':''} · 新增独立收费任务，不自动触发，原模型不被修改`:d.kind==='multiview-to-model'?`多视图生3D · ${Object.keys(d.params?.views??{}).length} 个视角各自免费上传后合并为 1 个独立收费任务，不自动装配`:d.kind==='image-to-model'?(d.role==='sheet'?`整张拆件图 · 代替 ${d.covers?.length??0} 个次要部件一次建模 · 1 个独立收费任务，不自动拆分或装配`:d.role==='whole'?'整体打底（旧版计划）· 独立收费，未自动装配':`${jobRoleLabel(d)} · 独立收费任务`):priceText(d.params.model,d.params.quality)}<br/>参考积分：{est===null?'未能按公开表估算':`约 ${est}`}<br/>输入哈希：{d.inputHash||'纯文本'}<br/>审批绑定当前站点、当前图片、参数与账户；后续改图需重新准备。</small></article>})}</div><label className="tw-consent"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>我已核对上述输入与任务数量，同意数据上传及实际积分扣除。</label><div className="tw-actions"><button disabled={busy} onClick={()=>run(cancelApproval)}>取消并丢弃草稿</button><button className="tw-primary" disabled={!consent||busy||!canPay} onClick={()=>run(confirm)}>确认上传并提交 {approval.length} 个任务</button></div></div></div>}
     {deleteImage&&<div className="tw-modal" role="dialog" aria-modal="true" aria-label="删除参考图确认"><div className="tw-dialog"><h2>删除本机参考图？</h2><p>即将删除「{deleteImage.label}」的本地文件和资产记录，此操作不可撤回。云端任务和其他文件不会受影响。</p>{deleteImageError&&<p className="tw-danger" role="alert">{deleteImageError}</p>}<div className="tw-actions"><button disabled={busy} onClick={()=>setDeleteImage(null)}>保留图片</button><button disabled={busy} onClick={()=>run(async()=>{const id=deleteImage.id;setDeleteImageError('');try{await api(`/projects/${project.id}/assets/${id}/delete`,'POST',{confirm:true})}catch(e){setDeleteImageError(e.message);return}setDeleteImage(null);if(selected===id)setSelected('');if(wholeAsset===id)setWholeAsset('');if(sheetAsset===id)setSheetAsset('');await load(project.id);setMessage('已删除本机参考图及资产记录')})}>确认删除本机图片</button></div></div></div>}
     <ImageLightbox asset={zoomAsset} onClose={()=>setZoomAsset(null)}/>
   </div>

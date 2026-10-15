@@ -11,7 +11,7 @@
 - `server/credentials.js`：会话/Windows DPAPI 凭据；`store.js`、`project-location.js` 管理项目和存储。
 - `shared/`：站点、模型参数合同、任务 ID/状态与提示词策略。
 
-当前 API 为国内站固定地址，接口与价格表可能变化；源码中的模型/价格资料核对日期为 2026-09-22，不是永久有效的供应商承诺。
+API 为显式国内站／国际站固定地址；站点切换关闭收费，不跨站尝试。国际站不套用国内站数值估价，接口与价格表可能变化；源码中的模型/价格资料核对日期为 2026-09-22，不是永久有效的供应商承诺。
 
 ## 安装开发依赖和构建
 
@@ -27,8 +27,8 @@ npm test
 
 构建产物：
 
-- `plugin/lib/client-v0.3.6.js`：正式插件入口，仓库保留此当前构建。
-- `Tripo-Studio-Workbench-v0.3.6.html`：根目录单文件离线预览，带 React/ReactDOM，仅供本机界面/导入预览。被 `.gitignore` 排除，默认不纳入源码发布包。
+- `plugin/lib/client-v0.4.0.js`：正式插件入口，仓库保留此当前构建。
+- `Tripo-Studio-Workbench-v0.4.0.html`：根目录单文件离线预览，带 React/ReactDOM，仅供本机界面/导入预览。被 `.gitignore` 排除，默认不纳入源码发布包。
 
 `package.json` 的 `private: true` 防止误发 npm，**不影响上传 GitHub**。不应为了 GitHub 发布而移除此保护。
 
@@ -45,6 +45,7 @@ npm run test:v033
 npm run test:v034
 npm run test:v035
 npm run test:v036
+npm run test:v040
 ```
 
 历史回归入口：`test:v029`、`test:v0210`、`test:v0211`、`test:v0212`、`test:v030`、`test:v031`、`test:v032`。这些名字标识回归场景，测试运行的是当前客户端，不需要历史 JS bundle。

@@ -36,7 +36,7 @@ export function RetopoPanel({jobs = [], busy, canPay, onPrepare}) {
  return <section className="tw-convert tw-retopo" aria-label="重拓扑">
   <h3>⑤ 已完成模型 → 重拓扑 / 减面（独立收费）</h3>
   <RetopoOfficialTips/>
-  <label>原模型任务<select aria-label="重拓扑来源任务" value={jobId} onChange={e => setJobId(e.target.value)}><option value="">选择已成功的国内站3D生成任务</option>{jobs.map(j => <option key={j.id} value={j.id}>{j.label} · {j.taskId}</option>)}</select></label>
+  <label>原模型任务<select aria-label="重拓扑来源任务" value={jobId} onChange={e => setJobId(e.target.value)}><option value="">选择已成功的当前站点3D生成任务</option>{jobs.map(j => <option key={j.id} value={j.id}>{j.label} · {j.taskId}</option>)}</select></label>
   {orientationCaveat(job) && <small className="tw-official-inline" role="alert">{orientationCaveat(job)}</small>}
   <label>重拓扑模型<select aria-label="重拓扑模型" value={model} onChange={e => pickModel(e.target.value)}>{DECIMATE_MODELS.map(v => <option key={v} value={v}>{v === 'v2.0' ? 'v2.0 智能重拓扑 · 30 积分（官方默认）' : 'v1.0 基础减面 · 10 积分'}</option>)}</select></label>
   <label>拓扑<select aria-label="重拓扑拓扑" value={quad ? 'quad' : 'tri'} onChange={e => pickQuad(e.target.value === 'quad')}><option value="tri">三角面</option><option value="quad">四边面</option></select></label>

@@ -5,7 +5,7 @@ import path from 'node:path'
 import {randomUUID} from 'node:crypto'
 import {execFileSync} from 'node:child_process'
 import {fail} from './store.js'
-import {TRIPO_SITE} from '../shared/site.js'
+import {siteInfo} from '../shared/site.js'
 
 export function validateKey(value) {
   if (typeof value !== 'string' || value.length > 4096) fail('密钥格式无效（最多 4096 个字符）',400,'INVALID_CREDENTIAL')
@@ -32,10 +32,11 @@ export function windowsProtector({platform=process.platform,run=execFileSync}={}
   return {supported,protect:bytes=>transform(bytes,'Protect'),unprotect:bytes=>transform(bytes,'Unprotect')}
 }
 export class CredentialStore {
-  constructor(directory,{protector=windowsProtector()}={}) {
+  constructor(directory,{protector=windowsProtector(),site='cn'}={}) {
     this.directory=path.join(directory,'secrets')
-    // Never read, decrypt, overwrite or migrate the legacy international file.
-    this.file=path.join(this.directory,'connection-cn.json')
+    // Keep the old connection.json sealed; each supported site has its own v2 vault.
+    this.site=siteInfo(site).id
+    this.file=path.join(this.directory,`connection-${this.site}.json`)
     this.protector=protector
   }
   get canPersist(){return this.protector.supported}
@@ -44,13 +45,13 @@ export class CredentialStore {
     try {
       if(fs.statSync(this.file).size>32768) throw new Error('too large')
       const record=JSON.parse(fs.readFileSync(this.file,'utf8'))
-      if(record.version!==2 || record.site!==TRIPO_SITE) throw new Error('unsupported site')
+      if(record.version!==2 || record.site!==this.site) throw new Error('unsupported site')
       if(record.cleared===true) return {key:'',paidEnabled:false,source:'cleared'}
       if(record.provider!=='windows-dpapi-current-user'||typeof record.ciphertext!=='string'||!/^[A-Za-z0-9+/]+={0,2}$/.test(record.ciphertext)) throw new Error('invalid')
       const plain=this.protector.unprotect(Buffer.from(record.ciphertext,'base64'))
       try {
         const value=JSON.parse(plain.toString('utf8'))
-        if(value.site!==TRIPO_SITE || typeof value.paidEnabled!=='boolean') throw new Error('invalid')
+        if(value.site!==this.site || typeof value.paidEnabled!=='boolean') throw new Error('invalid')
         return {key:validateKey(value.key),paidEnabled:value.paidEnabled,source:'saved'}
       } finally {plain.fill(0)}
     } catch {
@@ -71,14 +72,14 @@ export class CredentialStore {
   }
   save(key,paidEnabled) {
     if(!this.canPersist) fail('本机加密保存不可用，请选择仅本次运行',503,'SECURE_STORAGE_UNAVAILABLE')
-    const plain=Buffer.from(JSON.stringify({site:TRIPO_SITE,key:validateKey(key),paidEnabled}))
+    const plain=Buffer.from(JSON.stringify({site:this.site,key:validateKey(key),paidEnabled}))
     let encrypted
     try {encrypted=this.protector.protect(plain)} finally {plain.fill(0)}
-    this.write({version:2,site:TRIPO_SITE,provider:'windows-dpapi-current-user',ciphertext:encrypted.toString('base64')})
+    this.write({version:2,site:this.site,provider:'windows-dpapi-current-user',ciphertext:encrypted.toString('base64')})
   }
   clear() {
     // This contains NO secret. The tombstone also prevents environment fallback
     // from unexpectedly re-enabling an account after the user clicks Clear.
-    this.write({version:2,site:TRIPO_SITE,cleared:true})
+    this.write({version:2,site:this.site,cleared:true})
   }
 }

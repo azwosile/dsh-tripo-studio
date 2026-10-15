@@ -1,5 +1,5 @@
-// 0.3.6 browser/contract evidence: official P2.0 智能网格 (P2-20260801) in the 图生3D model list.
-// Mock provider only — 未调用真实 API，未消耗积分。 Writes validation/v0.3.6/v036-results.json.
+// 0.4.0 browser/contract evidence: official P2.0 智能网格 (P2-20260801) in the 图生3D model list.
+// Mock provider only — 未调用真实 API，未消耗积分。 Writes validation/v0.4.0/v036-results.json.
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
@@ -10,17 +10,17 @@ import {createHandler} from '../server/routes.js'
 import {hostRouter} from '../tests/fixtures/host-router.mjs'
 import {JobService} from '../server/service.js'
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..')
-const out=path.resolve(root,'..','validation','v0.3.6');fs.mkdirSync(out,{recursive:true})
+const out=path.resolve(root,'..','validation','v0.4.0');fs.mkdirSync(out,{recursive:true})
 const png=fs.readFileSync(path.join(root,'tests','fixtures','reference.png'))
 const checks=[];const check=(name,ok,detail='')=>{checks.push({name,ok:Boolean(ok),...(detail?{detail}:{})});console.log(`${ok?'PASS':'FAIL'} ${name}${detail?` — ${detail}`:''}`)}
 const P2='P2-20260801'
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'tripo-v036-ui-')),calls=[]
 const client={balance:async()=>({balance:500,frozen:0}),usage:async()=>[],task:async()=>{calls.push('task');throw Error('NO TASK QUERY EXPECTED')},create:async()=>{calls.push('create');throw Error('NO PAID SUBMIT EXPECTED')},upload:async()=>{calls.push('upload');throw Error('NO UPLOAD EXPECTED')}}
 const service=new JobService({directory:temp,key:'FAKE_LOCAL_V036',enabled:true,client}),s=service.store
-const p=s.newProject('0.3.6界面测试')
+const p=s.newProject('0.4.0界面测试')
 s.addAsset(p.id,png,{label:'道具',priority:'high'})
 const router=hostRouter(createHandler({service}))
-const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.3.6.js',['lib/client-v0.3.6.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
+const allowed=new Map([['/scripts/preview.html',['scripts/preview.html','text/html']],['/lib/client-v0.4.0.js',['lib/client-v0.4.0.js','text/javascript']],['/node_modules/react/umd/react.development.js',['node_modules/react/umd/react.development.js','text/javascript']],['/node_modules/react-dom/umd/react-dom.development.js',['node_modules/react-dom/umd/react-dom.development.js','text/javascript']]])
 const server=http.createServer((req,res)=>{const route=router.match(req.url);if(route)return route.handler(req,res);const file=allowed.get(new URL(req.url,'http://localhost').pathname);if(!file){res.statusCode=404;return res.end()}res.setHeader('content-type',file[1]);res.end(fs.readFileSync(path.join(root,file[0])))})
 await new Promise(r=>server.listen(0,'127.0.0.1',r))
 const base=`http://127.0.0.1:${server.address().port}`,errors=[],external=[]
@@ -32,7 +32,7 @@ try {
  await page.route('**/*',route=>{const u=route.request().url();if(/^https?:/.test(u)&&!u.startsWith(base+'/')){external.push(u);return route.abort()}return route.continue()})
  await page.goto(base+'/scripts/preview.html');await expect(page.locator('.tw-steps')).toBeVisible()
  const upgrade=page.locator('.tw-upgrade');if(await upgrade.count())await upgrade.getByRole('button',{name:'知道了'}).click()
- check('UI: header shows 0.3.6',await page.locator('.tw-brand').innerText().then(t=>t.includes('0.3.6')))
+ check('UI: header shows 0.4.0',await page.locator('.tw-brand').innerText().then(t=>t.includes('0.4.0')))
  await page.locator('.tw-steps button').nth(2).click()
  const sel=page.getByLabel('Tripo 几何模型')
  const options=await sel.locator('option').allInnerTexts()
@@ -65,7 +65,7 @@ try {
  check('UI: no page errors, no external requests, no provider calls',errors.length===0&&external.length===0&&calls.length===0,JSON.stringify({errors,external,calls}))
 } catch(e){check('UI run completed',false,e.message);if(page)await page.screenshot({path:path.join(out,'v036-ui-failure.png'),fullPage:true}).catch(()=>{})}
 finally{if(browser)await browser.close();await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true})}
-const result={version:'0.3.6',generatedAt:new Date().toISOString(),disclaimer:'Mock provider only — 未调用真实 API，未消耗积分。',passed:checks.filter(c=>c.ok).length,failed:checks.filter(c=>!c.ok).length,checks}
+const result={version:'0.4.0',generatedAt:new Date().toISOString(),disclaimer:'Mock provider only — 未调用真实 API，未消耗积分。',passed:checks.filter(c=>c.ok).length,failed:checks.filter(c=>!c.ok).length,checks}
 fs.writeFileSync(path.join(out,'v036-results.json'),JSON.stringify(result,null,2)+'\n')
-console.log(`v0.3.6: ${result.passed}/${checks.length} passed → ${path.relative(path.resolve(root,'..'),path.join(out,'v036-results.json'))}`)
+console.log(`v0.4.0: ${result.passed}/${checks.length} passed → ${path.relative(path.resolve(root,'..'),path.join(out,'v036-results.json'))}`)
 if(result.failed)process.exit(1)

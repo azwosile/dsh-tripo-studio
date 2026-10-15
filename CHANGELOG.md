@@ -2,6 +2,14 @@
 
 本页记录**产品改动**，不再把安装流水账写入 README。日期来自原开发记录；不是本次重新完成真实 API/原生 GUI 验收的日期。当前用法以 [README](README.md) 和[安装说明](docs/INSTALLATION.md)为准。
 
+## 0.4.0 · 2026-10-15
+
+- **国际站 API 适配**：新增显式 `cn` / `international` 选择，共用官方 v3 接口合同；国际站固定 `https://openapi.tripo3d.ai/v3`。上传、生成、查询、余额、用量及后处理均走对应站点，无任意 URL、无自动跨站尝试、收费 POST 不重试。
+- **凭据与任务隔离**：每站独立加密文件、专用环境变量、账户／审批指纹与任务 ID 去重。切站不复制 Key、不访问供应商，并关闭收费；选择仅本次运行有效，重启依宿主 `site` 配置。旧 `connection.json` 与旧指纹不自动迁移。
+- **DSH Web 适配**：保留默认 `local` 模式；显式 `web` 模式要求精确 HTTPS 来源（仅回环可 HTTP）及独立 `TRIPO_STUDIO_WEB_TOKEN`。浏览器登录建立 8 小时 HttpOnly / Strict / HTTPS Secure Cookie；状态、项目、资产均授权，写操作仍验证 CSRF，切站旋转 CSRF，退出撤销会话。Web 模式使用服务端固定目录，禁用远程原生目录选择。
+- **UI / 版本闭包**：站点选择与二次确认、动态端点／任务标签、Web 登录／退出入口；国际站不套国内站数值估价。客户端、锁文件、安装预检、离线预览及历史回归入口同步 0.4.0，未增加生产依赖。
+- **验证**：单元 181/181；新增双站／Web 浏览器 10/10；凭据 17/17；P2 浏览器回归 12/12；工作流浏览器 31/31；多视图回归 21/21；重拓扑回归 13/13；外观 34/34；现有实际 DSH WebServer 路由 6/6，实际 Cordis 注册／构建边界检查通过。使用临时数据和模拟供应商，未真实消费，未部署用户 DSH／公网反代。详细设置与限制见 [DSH Web 与双站配置](docs/WEB.md)。
+
 ## 仓库更名 · 2026-10-08（插件版本仍为 0.3.5，功能与构建不变）
 
 - **新名称 `dsh-tripo-studio`**：GitHub 仓库由 `azwosile/dsh-tripo-blender` 更名为 [`azwosile/dsh-tripo-studio`](https://github.com/azwosile/dsh-tripo-studio)，与插件名称 **DSH Tripo Studio** 和包名 `dsh-tripo-studio` 一致，避免误以为是 Blender 插件。旧链接由 GitHub 自动跳转。

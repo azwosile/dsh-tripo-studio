@@ -1,3 +1,4 @@
+import {siteInfo,TRIPO_SITE} from '../shared/site.js'
 import React from 'react'
 import {RenameButton} from './image-card.jsx'
 import {CLEANUP_STATUSES,requiresRetention} from '../shared/task-policy.js'
@@ -35,8 +36,8 @@ function TaskCard({job:j,jobs,assets,busy,onAction,onPreview,onImage,onZoom,onRe
   return <article className="tw-job" data-job-id={j.id}>
     <header><strong>{j.label}</strong><span className={j.status==='submission_unknown'?'tw-danger':''}>{STATUS[j.status]||j.status}</span></header>
     <small className="tw-job-model">模型：{model}</small>
-    <small>{current?'国内站':'国际站 / 其他站历史'} · <b className={`tw-kind-tag kind-${j.kind}`}>{KIND_LABEL[j.kind]||j.kind}{j.kind==='image-to-model'?` · ${jobRoleLabel(j)}`:j.kind==='multiview-to-model'?` · ${MULTIVIEW_VIEWS.filter(v=>j.params?.views?.[v]).map(v=>MULTIVIEW_LABELS[v]).join('/')}`:''}</b> · {j.kind} · {j.taskId||'无云端 task_id'} · {j.progress}%{j.importedAt?' · 手动查询导入':''}</small>
-    {!current&&<p className="tw-note">历史任务已隔离：不会向国内站提交、查询或重试下载。请到原站控制台处理；已下载资产可继续本地使用。</p>}
+    <small>{current?siteInfo(TRIPO_SITE).label:'其他站历史'} · <b className={`tw-kind-tag kind-${j.kind}`}>{KIND_LABEL[j.kind]||j.kind}{j.kind==='image-to-model'?` · ${jobRoleLabel(j)}`:j.kind==='multiview-to-model'?` · ${MULTIVIEW_VIEWS.filter(v=>j.params?.views?.[v]).map(v=>MULTIVIEW_LABELS[v]).join('/')}`:''}</b> · {j.kind} · {j.taskId||'无云端 task_id'} · {j.progress}%{j.importedAt?' · 手动查询导入':''}</small>
+    {!current&&<p className="tw-note">历史任务已隔离：不会向当前站点提交、查询或重试下载。请到原站控制台处理；已下载资产可继续本地使用。</p>}
     <p>本地资产：{({not_started:'未开始',downloading:'下载中',downloaded:'已保存',download_failed:'下载失败，可重试'})[j.downloadStatus]||'未开始'} / 实际积分：{j.creditsConsumed??'未返回'}{j.creditsSource==='usage'?'（来自用量记录）':''}</p>
     {j.lastRefreshedAt&&<small>最近查询：{new Date(j.lastRefreshedAt).toLocaleString()}</small>}
     {[...new Set([j.error,j.lastQueryError,j.downloadError].filter(Boolean))].map((message,i)=><p className="tw-danger" key={i}>{message}</p>)}
@@ -63,7 +64,7 @@ function TaskCard({job:j,jobs,assets,busy,onAction,onPreview,onImage,onZoom,onRe
       <button disabled={busy} onClick={()=>onAction(j,retain?'visibility':'delete',retain?{confirm:true,hidden:true}:{confirm:true,deleteAssets})}>{retain?'确认移除并保留恢复信息':`确认删除本地记录${deleteAssets?'及产出资产':''}`}</button><button disabled={busy} onClick={()=>setRemove(false)}>保留记录</button>
     </div>}
     {current&&j.status==='submission_unknown'&&!j.taskId&&<section className="tw-recovery" aria-label="关联已存在的云端任务"><h3>关联已存在的云端任务</h3>
-      <p>旧版可能误拒 UUID。请到国内站控制台核对同一账户、输入和任务类型，粘贴对应 task_id。这里只查询并保存产出，不重新上传或生成。</p>
+      <p>旧版可能误拒 UUID。请到当前站点控制台核对同一账户、输入和任务类型，粘贴对应 task_id。这里只查询并保存产出，不重新上传或生成。</p>
       <label>云端 task_id<input aria-label="恢复用云端 task_id" value={taskId} maxLength={128} placeholder="UUID 或 task_..." onChange={e=>{setTaskId(e.target.value);setConfirmed(false)}}/></label>
       <label><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>我已核对这是此记录对应的同一云端任务</label>
       <button disabled={busy||!confirmed||!validTaskId(taskId.trim())} onClick={()=>onAction(j,'recover',{taskId:taskId.trim(),confirm:true})}>关联并刷新（不重新生成）</button>

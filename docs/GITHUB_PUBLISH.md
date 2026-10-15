@@ -51,7 +51,7 @@ git push -u origin main
 
 ## 包中包含与排除
 
-包含：源码、锁文件、当前 `client-v0.3.6.js`、必要测试、MIT/第三方声明、当前文档、打包工具和文件哈希清单。
+包含：源码、锁文件、当前 `client-v0.4.0.js`、必要测试、MIT/第三方声明、当前文档、打包工具和文件哈希清单。
 
 排除：所有个人模型/贴图/参考图，Blender/GLB/FBX/OBJ/STL/USD 等资产，`.git`、`node_modules`、运行项目、`state.json`、`secrets`、Key、日志、截图、历史 bundle、旧 ZIP/HTML 和安装备份。
 
@@ -64,13 +64,13 @@ git push -u origin main
 需要 Python 3.10+。外部 `*.zip.sha256` 是 ZIP 的 SHA-256；Windows 可先运行：
 
 ```powershell
-Get-FileHash ..\dsh-tripo-studio-v0.3.6-github-20261008.zip -Algorithm SHA256
+Get-FileHash ..\dsh-tripo-studio-v0.4.0-github-20261015.zip -Algorithm SHA256
 ```
 
 将结果与旁边的 `.sha256` 文件比较。再校验 ZIP 内逐文件哈希和严格排除规则：
 
 ```powershell
-python -B .\tools\verify_release.py ..\dsh-tripo-studio-v0.3.6-github-20261008.zip
+python -B .\tools\verify_release.py ..\dsh-tripo-studio-v0.4.0-github-20261015.zip
 # 或校验刚解压、尚未初始化 Git/安装依赖/运行测试的干净目录：
 python -B .\tools\verify_release.py .
 ```
@@ -86,14 +86,14 @@ python -B .\tools\verify_release.py .
 ```powershell
 git status --short          # 核对只有本次版本的改动
 git add -A -- .
-git diff --cached --stat     # 旧 client-v0.3.5.js 应显示为删除，新 client-v0.3.6.js 为新增
+git diff --cached --stat     # 旧 client-v0.3.5.js 应显示为删除，新 client-v0.4.0.js 为新增
 git commit -m "feat: DSH Tripo Studio 0.3.6 - P2.0 智能网格"
 git tag v0.3.6
 git push origin main
 git push origin v0.3.6
 ```
 
-可选：在 GitHub 的 **Releases → Draft a new release** 选择标签 `v0.3.6`，把 `dsh-tripo-studio-v0.3.6-github-20261008.zip` 及其 `.sha256` 作为附件上传。使用 GitHub Desktop 时同理：检查 Changes → 填写提交说明 → Commit to main → Push origin；标签可在 History 中右键提交创建后再推送。
+可选：在 GitHub 的 **Releases → Draft a new release** 选择标签 `v0.3.6`，把 `dsh-tripo-studio-v0.4.0-github-20261015.zip` 及其 `.sha256` 作为附件上传。使用 GitHub Desktop 时同理：检查 Changes → 填写提交说明 → Commit to main → Push origin；标签可在 History 中右键提交创建后再推送。
 
 ## 仓库更名（2026-10-08）
 
@@ -122,3 +122,7 @@ python -B .\tools\verify_release.py ..\dsh-tripo-studio-new-reviewed-snapshot.zi
 工具只读取白名单文件，拒绝路径越界、符号链接、禁止扩展名、历史 bundle、异常大文件和部分高置信凭据模式；重新生成内嵌哈希及外部 SHA-256。未列入白名单的模型即使放在源码树内也不会被复制。不要只依赖扩展名或扫描器判断文件是否可以公开。
 
 上传后建议开启 GitHub 可用的安全告警/依赖更新功能；发现已泄露凭据时先撤销/轮换，再处理 Git 历史和其他副本。
+
+## 0.4.0 更新说明
+
+本轮新增双站与 DSH Web 安全适配；发布包仅包含 `client-v0.4.0.js`，旧构建只保留在仓库历史／开发目录，不纳入 0.4.0 ZIP。先运行构建、单元、`test:v040` 与既有回归，再使用白名单重新生成哈希和 ZIP；不发布验证截图、用户资产、Web 口令或 Key。

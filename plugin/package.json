@@ -1,19 +1,19 @@
 {
   "name": "dsh-tripo-studio",
-  "version": "0.3.6",
+  "version": "0.4.0",
   "private": true,
-  "description": "Local-first GPT-image 2.5 to Tripo 3D workflow for DSH Desktop and the official DeepSeek Harness desktop",
+  "description": "Local-first GPT-image 2.5 to Tripo 3D workflow for DSH Desktop, official DeepSeek Harness desktop and DSH Web",
   "type": "module",
   "main": "index.js",
   "exports": {
     ".": "./index.js",
-    "./client": "./lib/client-v0.3.6.js",
+    "./client": "./lib/client-v0.4.0.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
   "files": [
     "index.js",
-    "lib/client-v0.3.6.js",
+    "lib/client-v0.4.0.js",
     "server",
     "shared",
     "client-src",
@@ -64,7 +64,8 @@
     "test:v033": "node scripts/test-v033.mjs",
     "test:v034": "node scripts/test-v034.mjs",
     "test:v035": "node scripts/test-v035.mjs",
-    "test:v036": "node scripts/test-v036.mjs"
+    "test:v036": "node scripts/test-v036.mjs",
+    "test:v040": "node scripts/test-v040.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2"
